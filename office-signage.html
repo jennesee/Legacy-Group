@@ -154,6 +154,13 @@
   <div class="ed-section">
     <h2>Upcoming appointments <span style="color:var(--paper-dim); font-size:.85rem; font-family:'IBM Plex Sans';">(optional)</span></h2>
     <div class="checkbox-row"><input type="checkbox" id="showAppointments"><label for="showAppointments">Show appointments slide</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="autoSyncAppts"><label for="autoSyncAppts">Pull appointments automatically from the calendar above</label></div>
+    <div class="ed-field" style="max-width:480px; margin-bottom:1.4rem;">
+      <label>Google API key</label>
+      <input type="text" id="googleApiKey" placeholder="Paste your Google Calendar API key here">
+    </div>
+    <p class="hint" style="margin-bottom:1.6rem;">Only used when automatic sync is on. Format each event on your calendar as <em>First name &ndash; reason</em> (e.g. "Jordan &ndash; Medicare review") so it displays correctly. Only the first word ever shows on screen, regardless of what's typed.</p>
+    <p class="hint" style="margin-bottom:.6rem;">The list below is used when automatic sync is off, or as a backup if the sync fails:</p>
     <div id="apptList"></div>
     <button class="btn" id="addAppt" style="margin-top:1rem;">+ Add an appointment</button>
   </div>
@@ -232,6 +239,8 @@ const DEFAULT_CONFIG = {
   intervalMs: 12000,
   showCalendar: true,
   showAppointments: false,
+  appointmentsAutoSync: false,
+  googleApiKey: '',
   showTextSlides: true,
   calendarEmbedSrc: "https://calendar.google.com/calendar/embed?src=en.usa%23holiday%40group.v.calendar.google.com&ctz=America%2FDenver&mode=AGENDA&showTitle=0&showPrint=0&showTabs=0&showCalendars=0&showTz=0",
   imageSlides: [],
@@ -250,9 +259,9 @@ const DEFAULT_CONFIG = {
       body:'Ask about a mid-year tax check-in so April doesn\u2019t bring any surprises.' }
   ],
   appointments: [
-    { time:'10:00 AM', name:'J. Alvarez', note:'Medicare review' },
-    { time:'11:30 AM', name:'K. Chen', note:'Tax planning' },
-    { time:'1:00 PM', name:'R. Patel', note:'New client \u2014 bookkeeping' }
+    { time:'10:00 AM', name:'Jordan', note:'Medicare review' },
+    { time:'11:30 AM', name:'Kim', note:'Tax planning' },
+    { time:'1:00 PM', name:'Riley', note:'New client \u2014 bookkeeping' }
   ]
 };
 
@@ -267,8 +276,57 @@ function saveConfig(cfg){ localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg))
 
 let config = loadConfig();
 let rotateTimer = null;
+let apptRefreshTimer = null;
+let apptSlideEl = null;
 let current = 0;
 let liveObjectUrls = [];
+
+/* ---------------- Automatic appointment sync ---------------- */
+function extractCalendarId(embedSrc){
+  try{ return new URL(embedSrc).searchParams.get('src') || ''; }
+  catch(e){ return ''; }
+}
+function parseEventTitle(summary){
+  const parts = (summary || '').split(/\s[-\u2013\u2014]\s/);
+  return { name: (parts[0] || '').trim(), note: parts.length > 1 ? parts.slice(1).join(' - ').trim() : '' };
+}
+async function fetchTodaysAppointments(){
+  const calId = extractCalendarId(config.calendarEmbedSrc);
+  if(!calId || !config.googleApiKey) throw new Error('Missing calendar ID or API key');
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+  const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`
+    + `?key=${encodeURIComponent(config.googleApiKey)}`
+    + `&timeMin=${encodeURIComponent(startOfDay.toISOString())}`
+    + `&timeMax=${encodeURIComponent(endOfDay.toISOString())}`
+    + `&singleEvents=true&orderBy=startTime`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('Calendar request failed: ' + res.status);
+  const json = await res.json();
+  return (json.items || []).map(ev => {
+    const { name, note } = parseEventTitle(ev.summary);
+    const start = ev.start && ev.start.dateTime ? new Date(ev.start.dateTime) : null;
+    const time = start ? start.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' }) : 'All day';
+    return { time, name, note };
+  });
+}
+async function getAppointmentsData(){
+  if(config.appointmentsAutoSync && config.googleApiKey){
+    try{ return await fetchTodaysAppointments(); }
+    catch(e){ console.error('Appointment sync failed', e); return null; }
+  }
+  return config.appointments;
+}
+function renderApptListHTML(items){
+  if(items === null){
+    return `<p class="body-copy" style="color:var(--paper-dim);">Appointments are temporarily unavailable.</p>`;
+  }
+  if(!items.length){
+    return `<p class="body-copy" style="color:var(--paper-dim);">No appointments scheduled for today.</p>`;
+  }
+  return `<ul class="appt-list">${items.map(a => `<li class="appt-row"><span class="appt-time">${escapeHtml(a.time)}</span><span class="appt-name">${escapeHtml(firstNameOnly(a.name))}</span>${a.note ? `<span class="appt-note">\u2014 ${escapeHtml(a.note)}</span>` : ''}</li>`).join('')}</ul>`;
+}
 
 /* ---------------- Display rendering ---------------- */
 async function renderStage(){
@@ -293,7 +351,11 @@ async function renderStage(){
     config.slides.forEach(s => items.push({ type:'marketing', data:s }));
   }
   if(config.showCalendar) items.push({ type:'calendar' });
-  if(config.showAppointments) items.push({ type:'appointments' });
+  let appointmentsData = null;
+  if(config.showAppointments){
+    appointmentsData = await getAppointmentsData();
+    items.push({ type:'appointments' });
+  }
 
   const els = items.map(item => {
     const div = document.createElement('div');
@@ -319,10 +381,9 @@ async function renderStage(){
       div.innerHTML = `
         <div class="cal-wrap">
           <div class="cal-heading"><span class="service-label">Today</span><h2>Upcoming appointments</h2></div>
-          <ul class="appt-list">
-            ${config.appointments.map(a => `<li class="appt-row"><span class="appt-time">${escapeHtml(a.time)}</span><span class="appt-name">${escapeHtml(a.name)}</span><span class="appt-note">\u2014 ${escapeHtml(a.note)}</span></li>`).join('')}
-          </ul>
+          <div class="appt-body">${renderApptListHTML(appointmentsData)}</div>
         </div>`;
+      apptSlideEl = div;
     }
     stage.appendChild(div);
     return div;
@@ -343,6 +404,17 @@ async function renderStage(){
       showSlide(els, dotsWrap.children, current);
     }, config.intervalMs || 12000);
   }
+
+  clearInterval(apptRefreshTimer);
+  if(config.showAppointments && config.appointmentsAutoSync && config.googleApiKey){
+    apptRefreshTimer = setInterval(async () => {
+      const items = await getAppointmentsData();
+      if(apptSlideEl){
+        const body = apptSlideEl.querySelector('.appt-body');
+        if(body) body.innerHTML = renderApptListHTML(items);
+      }
+    }, 5 * 60 * 1000);
+  }
 }
 function showSlide(els, dots, i){
   els.forEach((el, idx) => el.classList.toggle('active', idx === i));
@@ -361,6 +433,7 @@ const editorEl = document.getElementById('editor');
 
 async function openEditor(){
   clearInterval(rotateTimer);
+  clearInterval(apptRefreshTimer);
   await populateEditor(config);
   editorEl.classList.add('open');
 }
@@ -380,6 +453,8 @@ async function populateEditor(cfg){
   document.getElementById('showCalendar').checked = !!cfg.showCalendar;
   document.getElementById('calendarSrc').value = cfg.calendarEmbedSrc || '';
   document.getElementById('showAppointments').checked = !!cfg.showAppointments;
+  document.getElementById('autoSyncAppts').checked = !!cfg.appointmentsAutoSync;
+  document.getElementById('googleApiKey').value = cfg.googleApiKey || '';
   document.getElementById('intervalSecs').value = Math.round((cfg.intervalMs||12000)/1000);
 
   const slideList = document.getElementById('slideList');
@@ -439,7 +514,7 @@ function apptRow(a){
   row.style.marginBottom = '1rem';
   row.innerHTML = `
     <div class="ed-field" style="max-width:140px;"><label>Time</label><input type="text" class="a-time" value="${escapeAttr(a.time)}"></div>
-    <div class="ed-field"><label>Name</label><input type="text" class="a-name" value="${escapeAttr(a.name)}"></div>
+    <div class="ed-field"><label>First name only</label><input type="text" class="a-name" placeholder="e.g. Jordan" value="${escapeAttr(a.name)}"></div>
     <div class="ed-field"><label>Note</label><input type="text" class="a-note" value="${escapeAttr(a.note)}"></div>
     <button class="btn danger" style="height:2.6rem;">Remove</button>`;
   row.querySelector('button').onclick = () => row.remove();
@@ -509,6 +584,8 @@ function collectEditorData(){
     showCalendar: document.getElementById('showCalendar').checked,
     calendarEmbedSrc: document.getElementById('calendarSrc').value.trim() || DEFAULT_CONFIG.calendarEmbedSrc,
     showAppointments: document.getElementById('showAppointments').checked,
+    appointmentsAutoSync: document.getElementById('autoSyncAppts').checked,
+    googleApiKey: document.getElementById('googleApiKey').value.trim(),
     slides: slides.length ? slides : DEFAULT_CONFIG.slides,
     appointments,
     imageSlides
@@ -567,6 +644,7 @@ document.getElementById('importCfgFile').addEventListener('change', e => {
   reader.readAsText(file);
 });
 
+function firstNameOnly(str){ return (str||'').trim().split(/\s+/)[0] || ''; }
 function escapeHtml(str){ return (str||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 function escapeAttr(str){ return escapeHtml(str).replace(/"/g,'&quot;'); }
 
