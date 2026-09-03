@@ -1,0 +1,71 @@
+{
+  "intervalMs": 12000,
+  "showTextSlides": true,
+  "showCalendar": true,
+  "calendarEmbedSrc": "https://calendar.google.com/calendar/embed?src=en.usa%23holiday%40group.v.calendar.google.com&ctz=America%2FDenver&mode=AGENDA&showTitle=0&showPrint=0&showTabs=0&showCalendars=0&showTz=0",
+  "showAppointments": false,
+  "appointmentsAutoSync": false,
+  "googleApiKey": "",
+  "slides": [
+    {
+      "tag": "M",
+      "accent": "gold",
+      "label": "Medicare",
+      "headline": "Medicare doesn’t have to be confusing.",
+      "body": "We walk you through Medicare Advantage, Supplement, and Part D plans one on one — no cost, no obligation, no pressure."
+    },
+    {
+      "tag": "M",
+      "accent": "gold",
+      "label": "Medicare · AEP",
+      "headline": "Annual Enrollment runs Oct 15–Dec 7.",
+      "body": "If your plan changed this year, it’s worth a second look. Ask us for a free plan review before the deadline."
+    },
+    {
+      "tag": "B",
+      "accent": "moss",
+      "label": "Bookkeeping",
+      "headline": "Know your numbers, every month.",
+      "body": "Monthly bookkeeping, reconciled and reported in plain language — so you always know where your business stands."
+    },
+    {
+      "tag": "B",
+      "accent": "moss",
+      "label": "Bookkeeping",
+      "headline": "Behind on your books? Let’s fix that.",
+      "body": "We clean up months — or years — of catch-up bookkeeping and get you current, organized, and audit-ready."
+    },
+    {
+      "tag": "T",
+      "accent": "clay",
+      "label": "Taxes",
+      "headline": "File with someone who knows your year.",
+      "body": "Because we also handle your books, your tax return reflects what actually happened in your business — not guesswork."
+    },
+    {
+      "tag": "T",
+      "accent": "clay",
+      "label": "Taxes",
+      "headline": "Planning beats filing.",
+      "body": "Ask about a mid-year tax check-in so April doesn’t bring any surprises."
+    }
+  ],
+  "appointments": [
+    {
+      "time": "10:00 AM",
+      "name": "Jordan",
+      "note": "Medicare review"
+    },
+    {
+      "time": "11:30 AM",
+      "name": "Kim",
+      "note": "Tax planning"
+    },
+    {
+      "time": "1:00 PM",
+      "name": "Riley",
+      "note": "New client — bookkeeping"
+    }
+  ],
+  "imageSlides": []
+}
