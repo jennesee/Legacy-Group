@@ -1,20 +1,13 @@
 {
-  "intervalMs": 12000,
-  "showTextSlides": true,
+  "slidesEmbedUrl": "https://www.canva.com/design/DAHULfkINIw/rZUEJY_6O8KMLaMisl7pFw/view?embed=&start=true&loop=true&delayms=10000",
+  "slidesDurationMs": 90000,
   "showCalendar": true,
   "calendarEmbedSrc": "https://calendar.google.com/calendar/embed?src=en.usa%23holiday%40group.v.calendar.google.com&ctz=America%2FDenver&mode=AGENDA&showTitle=0&showPrint=0&showTabs=0&showCalendars=0&showTz=0",
+  "calendarDurationMs": 20000,
   "showAppointments": false,
   "appointmentsAutoSync": false,
   "googleApiKey": "",
-  "slides": [
-    {
-      "tag": "T",
-      "accent": "clay",
-      "label": "Taxes",
-      "headline": "Planning beats filing.",
-      "body": "Ask about a mid-year tax check-in so April doesn’t bring any surprises."
-    }
-  ],
+  "appointmentsDurationMs": 15000,
   "appointments": [
     {
       "time": "10:00 AM",
@@ -30,12 +23,6 @@
       "time": "1:00 PM",
       "name": "Riley",
       "note": "New client — bookkeeping"
-    }
-  ],
-  "imageSlides": [
-    {
-      "url": "https://raw.githubusercontent.com/jennesee/Legacy-Group/main/slides/slide-1788468908924-2ij9fy.png",
-      "name": "Trade Show Table Top.png"
     }
   ]
 }
