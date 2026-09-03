@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Office Signage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink: #142430; --ink-deep: #0e1b23; --paper: #f3efe6; --paper-dim: #b9c3c9;
+    --gold: #cda24d; --clay: #c4694a; --moss: #7fa37a;
+  }
+  *{ box-sizing: border-box; }
+  html, body{ margin:0; padding:0; width:100%; height:100%; background:var(--ink); overflow:hidden;
+    font-family:'IBM Plex Sans', system-ui, -apple-system, sans-serif; }
+
+  #stage{ position:relative; width:100vw; height:100vh;
+    background: radial-gradient(ellipse at 15% 10%, rgba(255,255,255,0.05), transparent 55%),
+                radial-gradient(ellipse at 100% 100%, var(--ink-deep), var(--ink) 60%); }
+
+  .slide{ position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center;
+    padding:6vh 8vw; opacity:0; transform:translateY(14px);
+    transition:opacity .9s ease, transform .9s ease; pointer-events:none; }
+  .slide.active{ opacity:1; transform:translateY(0); pointer-events:auto; }
+  .slide.image-slide{ padding:0; align-items:center; justify-content:center; }
+  @media (prefers-reduced-motion: reduce){ .slide{ transition:opacity .6s ease; transform:none; } }
+
+  .badge{ width:4.2vw; height:4.2vw; min-width:52px; min-height:52px; border-radius:50%;
+    border:2px solid var(--accent, var(--gold)); display:flex; align-items:center; justify-content:center;
+    font-family:'Fraunces', serif; font-size:1.8vw; color:var(--accent, var(--gold)); margin-bottom:3vh; }
+  .service-label{ font-size:1.1vw; color:var(--accent, var(--gold)); letter-spacing:.02em; margin-bottom:1.4vh; }
+  .headline{ font-family:'Fraunces', serif; font-weight:500; font-size:clamp(2.4rem,5.2vw,5.2rem);
+    line-height:1.05; color:var(--paper); max-width:22ch; margin:0 0 3vh 0; white-space:pre-wrap; }
+  .rule{ width:5.5vw; min-width:70px; height:2px; background:var(--accent, var(--gold)); margin-bottom:3vh; opacity:.85; }
+  .body-copy{ font-size:clamp(1.1rem,1.6vw,1.8rem); color:var(--paper-dim); max-width:42ch; line-height:1.5; white-space:pre-wrap; }
+
+  .slide-img{ width:100%; height:100%; object-fit:contain; }
+
+  .cal-wrap{ height:100%; display:flex; flex-direction:column; }
+  .cal-heading{ display:flex; align-items:baseline; gap:1.2vw; margin-bottom:2vh; }
+  .cal-heading h2{ font-family:'Fraunces', serif; font-weight:500; font-size:clamp(1.8rem,3vw,2.6rem); color:var(--paper); margin:0; }
+  .cal-frame{ flex:1; border-radius:6px; overflow:hidden; background:var(--paper); box-shadow:0 0 0 1px rgba(255,255,255,.06); }
+  .cal-frame iframe{ width:100%; height:100%; border:0; display:block; }
+
+  .appt-list{ list-style:none; padding:0; margin:0; }
+  .appt-row{ display:flex; gap:2vw; padding:1.6vh 0; border-bottom:1px solid rgba(255,255,255,.08); font-size:clamp(1rem,1.5vw,1.6rem); }
+  .appt-time{ color:var(--accent, var(--gold)); min-width:8ch; font-variant-numeric:tabular-nums; }
+  .appt-name{ color:var(--paper); }
+  .appt-note{ color:var(--paper-dim); }
+
+  #dots{ position:absolute; left:8vw; bottom:4vh; display:flex; gap:10px; z-index:5; }
+  .dot{ width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.35); box-shadow:0 0 3px rgba(0,0,0,.6); transition:background .4s ease; }
+  .dot.on{ background:var(--paper); }
+
+  #clock{ position:absolute; right:8vw; bottom:4vh; text-align:right; z-index:5; color:var(--paper-dim); font-variant-numeric:tabular-nums; }
+  #clock .time{ font-family:'Fraunces', serif; font-size:clamp(1.2rem,1.8vw,2rem); color:var(--paper); display:block; text-shadow:0 1px 4px rgba(0,0,0,.6); }
+  #clock .date{ font-size:clamp(.8rem,1vw,1.1rem); text-shadow:0 1px 4px rgba(0,0,0,.6); }
+
+  #gear{ position:absolute; top:3vh; right:3vh; z-index:20; width:44px; height:44px; border-radius:50%;
+    border:1px solid rgba(255,255,255,.25); background:rgba(0,0,0,.25); color:var(--paper-dim);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; opacity:.25;
+    transition:opacity .2s ease; font-size:20px; }
+  #gear:hover{ opacity:1; }
+
+  #editor{ position:fixed; inset:0; z-index:50; background:rgba(10,16,20,.92);
+    display:none; overflow-y:auto; padding:5vh 6vw 8vh; }
+  #editor.open{ display:block; }
+  .ed-header{ display:flex; align-items:baseline; justify-content:space-between; margin-bottom:3vh; gap:2rem; flex-wrap:wrap; }
+  .ed-header h1{ font-family:'Fraunces', serif; font-weight:500; color:var(--paper); font-size:2rem; margin:0; }
+  .ed-header p{ color:var(--paper-dim); margin:.4rem 0 0; font-size:.95rem; }
+  .ed-close{ background:var(--gold); color:var(--ink); border:none; border-radius:4px; padding:.6rem 1.2rem;
+    font-weight:600; cursor:pointer; font-size:1rem; }
+  .ed-section{ background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:8px;
+    padding:2rem; margin-bottom:2rem; }
+  .ed-section h2{ font-family:'Fraunces', serif; font-weight:500; color:var(--paper); font-size:1.3rem; margin:0 0 .4rem; }
+  .ed-slide{ border-top:1px solid rgba(255,255,255,.08); padding:1.4rem 0; display:grid;
+    grid-template-columns: 90px 1fr 1fr; gap:1rem 1.2rem; align-items:start; }
+  .ed-slide:first-of-type{ border-top:none; }
+  .ed-field label{ display:block; color:var(--paper-dim); font-size:.8rem; margin-bottom:.35rem; }
+  .ed-field input, .ed-field select, .ed-field textarea{
+    width:100%; background:var(--ink); color:var(--paper); border:1px solid rgba(255,255,255,.15);
+    border-radius:4px; padding:.55rem .7rem; font-family:inherit; font-size:.95rem; resize:vertical; }
+  .ed-field textarea{ min-height:3.6rem; }
+  .ed-slide-actions{ grid-column:1 / -1; display:flex; gap:.8rem; margin-top:.4rem; }
+  .btn{ background:transparent; border:1px solid rgba(255,255,255,.25); color:var(--paper-dim);
+    border-radius:4px; padding:.4rem .9rem; font-size:.85rem; cursor:pointer; font-family:inherit; }
+  .btn:hover{ color:var(--paper); border-color:var(--paper); }
+  .btn.primary{ background:var(--gold); color:var(--ink); border-color:var(--gold); font-weight:600; }
+  .btn.danger{ color:var(--clay); border-color:var(--clay); }
+  .row{ display:flex; gap:1.5rem; flex-wrap:wrap; align-items:flex-end; }
+  .row .ed-field{ flex:1; min-width:220px; }
+  .checkbox-row{ display:flex; align-items:center; gap:.6rem; margin-bottom:1rem; }
+  .checkbox-row input{ width:auto; }
+  .checkbox-row label{ color:var(--paper); font-size:.95rem; margin:0; }
+  .hint{ color:var(--paper-dim); font-size:.8rem; margin-top:.4rem; }
+  .hint a{ color:var(--gold); }
+  .ed-footer{ display:flex; gap:1rem; justify-content:flex-end; flex-wrap:wrap; }
+
+  .ed-image-row{ display:flex; align-items:center; gap:1.2rem; padding:1rem 0; border-top:1px solid rgba(255,255,255,.08); }
+  .ed-image-row:first-of-type{ border-top:none; }
+  .ed-image-row img{ width:110px; height:62px; object-fit:cover; border-radius:4px; background:var(--ink); flex-shrink:0; }
+  .ed-image-row .name{ flex:1; color:var(--paper); font-size:.9rem; word-break:break-all; }
+  .ed-image-row .ed-slide-actions{ margin:0; }
+  #uploadDrop{ border:1.5px dashed rgba(255,255,255,.25); border-radius:8px; padding:2rem; text-align:center;
+    color:var(--paper-dim); margin-bottom:1rem; }
+  #uploadDrop label{ color:var(--gold); cursor:pointer; text-decoration:underline; }
+</style>
+</head>
+<body>
+
+<div id="stage"></div>
+<div id="dots"></div>
+<div id="clock"><span class="time" id="clock-time"></span><span class="date" id="clock-date"></span></div>
+<button id="gear" title="Edit content (or press E)">&#9881;</button>
+
+<div id="editor">
+  <div class="ed-header">
+    <div>
+      <h1>Edit signage content</h1>
+      <p>Changes save automatically to this device. Use "Download backup" to copy your setup — including uploaded slides — to another screen.</p>
+    </div>
+    <button class="ed-close" id="closeEditor">Done — back to display</button>
+  </div>
+
+  <div class="ed-section">
+    <h2>Your slides</h2>
+    <p class="hint" style="margin-top:0; margin-bottom:1.2rem;">Upload PNG or JPG exports from Canva. For an edge-to-edge fit, export at 1920&times;1080 (16:9) — in Canva: Share &rsaquo; Download &rsaquo; PNG or JPG. Other sizes will still display, centered with a dark border.</p>
+    <div id="uploadDrop">
+      <label for="imageUpload">Choose image files to upload</label>
+      <input type="file" id="imageUpload" accept="image/png,image/jpeg" multiple style="display:none;">
+    </div>
+    <div id="imageList"></div>
+  </div>
+
+  <div class="ed-section">
+    <h2>Built-in text slides <span style="color:var(--paper-dim); font-size:.85rem; font-family:'IBM Plex Sans';">(optional — you may not need these anymore)</span></h2>
+    <div class="checkbox-row"><input type="checkbox" id="showTextSlides"><label for="showTextSlides">Show built-in text slides alongside your uploads</label></div>
+    <div id="slideList"></div>
+    <button class="btn" id="addSlide" style="margin-top:1rem;">+ Add a text slide</button>
+  </div>
+
+  <div class="ed-section">
+    <h2>Calendar</h2>
+    <div class="checkbox-row"><input type="checkbox" id="showCalendar"><label for="showCalendar">Show calendar slide</label></div>
+    <div class="ed-field">
+      <label>Google Calendar embed link</label>
+      <input type="text" id="calendarSrc" placeholder="https://calendar.google.com/calendar/embed?src=...">
+    </div>
+    <p class="hint">In Google Calendar: Settings &rsaquo; pick your calendar &rsaquo; "Integrate calendar" &rsaquo; copy the address inside <code>src="..."</code> from the embed code, and paste just that link above.</p>
+  </div>
+
+  <div class="ed-section">
+    <h2>Upcoming appointments <span style="color:var(--paper-dim); font-size:.85rem; font-family:'IBM Plex Sans';">(optional)</span></h2>
+    <div class="checkbox-row"><input type="checkbox" id="showAppointments"><label for="showAppointments">Show appointments slide</label></div>
+    <div id="apptList"></div>
+    <button class="btn" id="addAppt" style="margin-top:1rem;">+ Add an appointment</button>
+  </div>
+
+  <div class="ed-section">
+    <h2>Timing</h2>
+    <div class="row">
+      <div class="ed-field">
+        <label>Seconds per slide</label>
+        <input type="number" id="intervalSecs" min="4" max="60">
+      </div>
+    </div>
+  </div>
+
+  <div class="ed-footer">
+    <button class="btn danger" id="resetDefaults">Reset to defaults</button>
+    <button class="btn" id="exportCfg">Download backup</button>
+    <button class="btn" id="importCfgBtn">Load backup</button>
+    <input type="file" id="importCfgFile" accept="application/json" style="display:none;">
+    <button class="btn primary" id="saveEditor">Save changes</button>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'officeSignageConfig';
+const ACCENTS = { gold: 'var(--gold)', moss: 'var(--moss)', clay: 'var(--clay)' };
+const DB_NAME = 'officeSignageDB';
+const STORE = 'images';
+
+/* ---------------- IndexedDB (for uploaded slide images) ---------------- */
+function idbOpen(){
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbPut(id, blob){
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).put(blob, id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function idbGet(id){
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readonly');
+    const req = tx.objectStore(STORE).get(id);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbDelete(id){
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+function blobToBase64(blob){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+const DEFAULT_CONFIG = {
+  intervalMs: 12000,
+  showCalendar: true,
+  showAppointments: false,
+  showTextSlides: true,
+  calendarEmbedSrc: "https://calendar.google.com/calendar/embed?src=en.usa%23holiday%40group.v.calendar.google.com&ctz=America%2FDenver&mode=AGENDA&showTitle=0&showPrint=0&showTabs=0&showCalendars=0&showTz=0",
+  imageSlides: [],
+  slides: [
+    { tag:'M', accent:'gold', label:'Medicare', headline:'Medicare doesn\u2019t have to be confusing.',
+      body:'We walk you through Medicare Advantage, Supplement, and Part D plans one on one \u2014 no cost, no obligation, no pressure.' },
+    { tag:'M', accent:'gold', label:'Medicare \u00b7 AEP', headline:'Annual Enrollment runs Oct 15\u2013Dec 7.',
+      body:'If your plan changed this year, it\u2019s worth a second look. Ask us for a free plan review before the deadline.' },
+    { tag:'B', accent:'moss', label:'Bookkeeping', headline:'Know your numbers, every month.',
+      body:'Monthly bookkeeping, reconciled and reported in plain language \u2014 so you always know where your business stands.' },
+    { tag:'B', accent:'moss', label:'Bookkeeping', headline:'Behind on your books? Let\u2019s fix that.',
+      body:'We clean up months \u2014 or years \u2014 of catch-up bookkeeping and get you current, organized, and audit-ready.' },
+    { tag:'T', accent:'clay', label:'Taxes', headline:'File with someone who knows your year.',
+      body:'Because we also handle your books, your tax return reflects what actually happened in your business \u2014 not guesswork.' },
+    { tag:'T', accent:'clay', label:'Taxes', headline:'Planning beats filing.',
+      body:'Ask about a mid-year tax check-in so April doesn\u2019t bring any surprises.' }
+  ],
+  appointments: [
+    { time:'10:00 AM', name:'J. Alvarez', note:'Medicare review' },
+    { time:'11:30 AM', name:'K. Chen', note:'Tax planning' },
+    { time:'1:00 PM', name:'R. Patel', note:'New client \u2014 bookkeeping' }
+  ]
+};
+
+function loadConfig(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return structuredClone(DEFAULT_CONFIG);
+    return Object.assign(structuredClone(DEFAULT_CONFIG), JSON.parse(raw));
+  }catch(e){ return structuredClone(DEFAULT_CONFIG); }
+}
+function saveConfig(cfg){ localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg)); }
+
+let config = loadConfig();
+let rotateTimer = null;
+let current = 0;
+let liveObjectUrls = [];
+
+/* ---------------- Display rendering ---------------- */
+async function renderStage(){
+  liveObjectUrls.forEach(u => URL.revokeObjectURL(u));
+  liveObjectUrls = [];
+
+  const stage = document.getElementById('stage');
+  const dotsWrap = document.getElementById('dots');
+  stage.innerHTML = '';
+  dotsWrap.innerHTML = '';
+
+  const items = [];
+  for(const meta of config.imageSlides){
+    const blob = await idbGet(meta.id);
+    if(blob){
+      const url = URL.createObjectURL(blob);
+      liveObjectUrls.push(url);
+      items.push({ type:'image', url, name: meta.name });
+    }
+  }
+  if(config.showTextSlides !== false){
+    config.slides.forEach(s => items.push({ type:'marketing', data:s }));
+  }
+  if(config.showCalendar) items.push({ type:'calendar' });
+  if(config.showAppointments) items.push({ type:'appointments' });
+
+  const els = items.map(item => {
+    const div = document.createElement('div');
+    div.className = 'slide';
+    if(item.type === 'image'){
+      div.classList.add('image-slide');
+      div.innerHTML = `<img class="slide-img" src="${item.url}" alt="${escapeAttr(item.name||'')}">`;
+    } else if(item.type === 'marketing'){
+      const accent = ACCENTS[item.data.accent] || ACCENTS.gold;
+      div.innerHTML = `
+        <div class="badge" style="--accent:${accent}">${escapeHtml(item.data.tag||'')}</div>
+        <div class="service-label" style="color:${accent}">${escapeHtml(item.data.label||'')}</div>
+        <h1 class="headline">${escapeHtml(item.data.headline||'')}</h1>
+        <div class="rule" style="background:${accent}"></div>
+        <p class="body-copy">${escapeHtml(item.data.body||'')}</p>`;
+    } else if(item.type === 'calendar'){
+      div.innerHTML = `
+        <div class="cal-wrap">
+          <div class="cal-heading"><span class="service-label">This month</span></div>
+          <div class="cal-frame"><iframe src="${config.calendarEmbedSrc}" scrolling="no"></iframe></div>
+        </div>`;
+    } else {
+      div.innerHTML = `
+        <div class="cal-wrap">
+          <div class="cal-heading"><span class="service-label">Today</span><h2>Upcoming appointments</h2></div>
+          <ul class="appt-list">
+            ${config.appointments.map(a => `<li class="appt-row"><span class="appt-time">${escapeHtml(a.time)}</span><span class="appt-name">${escapeHtml(a.name)}</span><span class="appt-note">\u2014 ${escapeHtml(a.note)}</span></li>`).join('')}
+          </ul>
+        </div>`;
+    }
+    stage.appendChild(div);
+    return div;
+  });
+
+  items.forEach(() => {
+    const d = document.createElement('div');
+    d.className = 'dot';
+    dotsWrap.appendChild(d);
+  });
+
+  current = 0;
+  showSlide(els, dotsWrap.children, 0);
+  clearInterval(rotateTimer);
+  if(els.length > 1){
+    rotateTimer = setInterval(() => {
+      current = (current + 1) % els.length;
+      showSlide(els, dotsWrap.children, current);
+    }, config.intervalMs || 12000);
+  }
+}
+function showSlide(els, dots, i){
+  els.forEach((el, idx) => el.classList.toggle('active', idx === i));
+  Array.from(dots).forEach((d, idx) => d.classList.toggle('on', idx === i));
+}
+
+function tick(){
+  const now = new Date();
+  document.getElementById('clock-time').textContent = now.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
+  document.getElementById('clock-date').textContent = now.toLocaleDateString([], { weekday:'long', month:'long', day:'numeric' });
+}
+tick(); setInterval(tick, 30000);
+
+/* ---------------- Editor ---------------- */
+const editorEl = document.getElementById('editor');
+
+async function openEditor(){
+  clearInterval(rotateTimer);
+  await populateEditor(config);
+  editorEl.classList.add('open');
+}
+function closeEditor(){
+  editorEl.classList.remove('open');
+  renderStage();
+}
+document.getElementById('gear').addEventListener('click', openEditor);
+document.getElementById('closeEditor').addEventListener('click', closeEditor);
+document.addEventListener('keydown', e => {
+  if(e.key.toLowerCase() === 'e' && !editorEl.classList.contains('open')) openEditor();
+  if(e.key === 'Escape' && editorEl.classList.contains('open')) closeEditor();
+});
+
+async function populateEditor(cfg){
+  document.getElementById('showTextSlides').checked = cfg.showTextSlides !== false;
+  document.getElementById('showCalendar').checked = !!cfg.showCalendar;
+  document.getElementById('calendarSrc').value = cfg.calendarEmbedSrc || '';
+  document.getElementById('showAppointments').checked = !!cfg.showAppointments;
+  document.getElementById('intervalSecs').value = Math.round((cfg.intervalMs||12000)/1000);
+
+  const slideList = document.getElementById('slideList');
+  slideList.innerHTML = '';
+  cfg.slides.forEach(s => slideList.appendChild(slideRow(s)));
+
+  const apptList = document.getElementById('apptList');
+  apptList.innerHTML = '';
+  cfg.appointments.forEach(a => apptList.appendChild(apptRow(a)));
+
+  const imageList = document.getElementById('imageList');
+  imageList.innerHTML = '';
+  for(const meta of cfg.imageSlides){
+    const blob = await idbGet(meta.id);
+    imageList.appendChild(imageRow(meta, blob));
+  }
+}
+
+function slideRow(s){
+  const row = document.createElement('div');
+  row.className = 'ed-slide';
+  row.innerHTML = `
+    <div class="ed-field">
+      <label>Badge letter</label>
+      <input type="text" maxlength="2" class="f-tag" value="${escapeAttr(s.tag)}">
+      <label style="margin-top:.6rem;">Accent</label>
+      <select class="f-accent">
+        <option value="gold" ${s.accent==='gold'?'selected':''}>Gold</option>
+        <option value="moss" ${s.accent==='moss'?'selected':''}>Moss</option>
+        <option value="clay" ${s.accent==='clay'?'selected':''}>Clay</option>
+      </select>
+    </div>
+    <div class="ed-field">
+      <label>Service label</label>
+      <input type="text" class="f-label" value="${escapeAttr(s.label)}">
+      <label style="margin-top:.6rem;">Headline</label>
+      <textarea class="f-headline">${escapeHtml(s.headline)}</textarea>
+    </div>
+    <div class="ed-field">
+      <label>Body text</label>
+      <textarea class="f-body" style="min-height:6.4rem;">${escapeHtml(s.body)}</textarea>
+    </div>
+    <div class="ed-slide-actions">
+      <button class="btn" data-act="up">Move up</button>
+      <button class="btn" data-act="down">Move down</button>
+      <button class="btn danger" data-act="remove">Remove slide</button>
+    </div>`;
+  row.querySelector('[data-act="remove"]').onclick = () => row.remove();
+  row.querySelector('[data-act="up"]').onclick = () => { const prev = row.previousElementSibling; if(prev) row.parentNode.insertBefore(row, prev); };
+  row.querySelector('[data-act="down"]').onclick = () => { const next = row.nextElementSibling; if(next) row.parentNode.insertBefore(next, row); };
+  return row;
+}
+
+function apptRow(a){
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.style.marginBottom = '1rem';
+  row.innerHTML = `
+    <div class="ed-field" style="max-width:140px;"><label>Time</label><input type="text" class="a-time" value="${escapeAttr(a.time)}"></div>
+    <div class="ed-field"><label>Name</label><input type="text" class="a-name" value="${escapeAttr(a.name)}"></div>
+    <div class="ed-field"><label>Note</label><input type="text" class="a-note" value="${escapeAttr(a.note)}"></div>
+    <button class="btn danger" style="height:2.6rem;">Remove</button>`;
+  row.querySelector('button').onclick = () => row.remove();
+  return row;
+}
+
+function imageRow(meta, blob){
+  const row = document.createElement('div');
+  row.className = 'ed-image-row';
+  row.dataset.id = meta.id;
+  row.dataset.name = meta.name || '';
+  const url = blob ? URL.createObjectURL(blob) : '';
+  row.innerHTML = `
+    <img src="${url}" alt="">
+    <div class="name">${escapeHtml(meta.name || meta.id)}</div>
+    <div class="ed-slide-actions">
+      <button class="btn" data-act="up">Move up</button>
+      <button class="btn" data-act="down">Move down</button>
+      <button class="btn danger" data-act="remove">Remove</button>
+    </div>`;
+  row.querySelector('[data-act="remove"]').onclick = async () => {
+    await idbDelete(meta.id);
+    row.remove();
+  };
+  row.querySelector('[data-act="up"]').onclick = () => { const prev = row.previousElementSibling; if(prev) row.parentNode.insertBefore(row, prev); };
+  row.querySelector('[data-act="down"]').onclick = () => { const next = row.nextElementSibling; if(next) row.parentNode.insertBefore(next, row); };
+  return row;
+}
+
+document.getElementById('addSlide').onclick = () => {
+  document.getElementById('slideList').appendChild(slideRow({ tag:'', accent:'gold', label:'', headline:'', body:'' }));
+};
+document.getElementById('addAppt').onclick = () => {
+  document.getElementById('apptList').appendChild(apptRow({ time:'', name:'', note:'' }));
+};
+document.getElementById('uploadDrop').addEventListener('click', () => document.getElementById('imageUpload').click());
+document.getElementById('imageUpload').addEventListener('change', async e => {
+  const files = Array.from(e.target.files || []);
+  for(const file of files){
+    const id = 'img_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    await idbPut(id, file);
+    document.getElementById('imageList').appendChild(imageRow({ id, name: file.name }, file));
+  }
+  e.target.value = '';
+});
+
+function collectEditorData(){
+  const slides = Array.from(document.querySelectorAll('#slideList .ed-slide')).map(row => ({
+    tag: row.querySelector('.f-tag').value.trim(),
+    accent: row.querySelector('.f-accent').value,
+    label: row.querySelector('.f-label').value.trim(),
+    headline: row.querySelector('.f-headline').value.trim(),
+    body: row.querySelector('.f-body').value.trim()
+  }));
+  const appointments = Array.from(document.querySelectorAll('#apptList .row')).map(row => ({
+    time: row.querySelector('.a-time').value.trim(),
+    name: row.querySelector('.a-name').value.trim(),
+    note: row.querySelector('.a-note').value.trim()
+  }));
+  const imageSlides = Array.from(document.querySelectorAll('#imageList .ed-image-row')).map(row => ({
+    id: row.dataset.id,
+    name: row.dataset.name
+  }));
+  return {
+    intervalMs: Math.max(4, Number(document.getElementById('intervalSecs').value) || 12) * 1000,
+    showTextSlides: document.getElementById('showTextSlides').checked,
+    showCalendar: document.getElementById('showCalendar').checked,
+    calendarEmbedSrc: document.getElementById('calendarSrc').value.trim() || DEFAULT_CONFIG.calendarEmbedSrc,
+    showAppointments: document.getElementById('showAppointments').checked,
+    slides: slides.length ? slides : DEFAULT_CONFIG.slides,
+    appointments,
+    imageSlides
+  };
+}
+
+document.getElementById('saveEditor').onclick = () => {
+  config = collectEditorData();
+  saveConfig(config);
+  closeEditor();
+};
+document.getElementById('resetDefaults').onclick = async () => {
+  if(confirm('Reset all content back to the built-in defaults? Uploaded slides will be deleted from this device. This can\'t be undone.')){
+    for(const meta of config.imageSlides) await idbDelete(meta.id);
+    config = structuredClone(DEFAULT_CONFIG);
+    saveConfig(config);
+    await populateEditor(config);
+  }
+};
+document.getElementById('exportCfg').onclick = async () => {
+  const data = collectEditorData();
+  const imageData = [];
+  for(const meta of data.imageSlides){
+    const blob = await idbGet(meta.id);
+    if(blob) imageData.push({ id: meta.id, name: meta.name, data: await blobToBase64(blob) });
+  }
+  const exportObj = Object.assign({}, data, { imageData });
+  const blob = new Blob([JSON.stringify(exportObj)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'signage-backup.json';
+  a.click();
+};
+document.getElementById('importCfgBtn').onclick = () => document.getElementById('importCfgFile').click();
+document.getElementById('importCfgFile').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try{
+      const parsed = JSON.parse(reader.result);
+      if(Array.isArray(parsed.imageData)){
+        for(const img of parsed.imageData){
+          const resp = await fetch(img.data);
+          const blob = await resp.blob();
+          await idbPut(img.id, blob);
+        }
+      }
+      delete parsed.imageData;
+      config = Object.assign(structuredClone(DEFAULT_CONFIG), parsed);
+      saveConfig(config);
+      await populateEditor(config);
+      alert('Backup loaded, including uploaded slides. Click "Save changes" to apply it.');
+    }catch(err){ console.error(err); alert('That file could not be read as a valid backup.'); }
+  };
+  reader.readAsText(file);
+});
+
+function escapeHtml(str){ return (str||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function escapeAttr(str){ return escapeHtml(str).replace(/"/g,'&quot;'); }
+
+renderStage();
+</script>
+</body>
+</html>
