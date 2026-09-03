@@ -89,6 +89,7 @@
   .btn:hover{ color:var(--paper); border-color:var(--paper); }
   .btn.primary{ background:var(--gold); color:var(--ink); border-color:var(--gold); font-weight:600; }
   .btn.danger{ color:var(--clay); border-color:var(--clay); }
+  .btn[disabled]{ opacity:.5; cursor:default; }
   .row{ display:flex; gap:1.5rem; flex-wrap:wrap; align-items:flex-end; }
   .row .ed-field{ flex:1; min-width:220px; }
   .checkbox-row{ display:flex; align-items:center; gap:.6rem; margin-bottom:1rem; }
@@ -96,7 +97,10 @@
   .checkbox-row label{ color:var(--paper); font-size:.95rem; margin:0; }
   .hint{ color:var(--paper-dim); font-size:.8rem; margin-top:.4rem; }
   .hint a{ color:var(--gold); }
-  .ed-footer{ display:flex; gap:1rem; justify-content:flex-end; flex-wrap:wrap; }
+  .ed-footer{ display:flex; gap:1rem; justify-content:flex-end; flex-wrap:wrap; align-items:center; }
+  .sync-status{ font-size:.85rem; padding:.6rem 1rem; border-radius:4px; margin-bottom:1.2rem; }
+  .sync-status.ok{ background:rgba(127,163,122,.15); color:var(--moss); }
+  .sync-status.warn{ background:rgba(196,105,74,.15); color:var(--clay); }
 
   .ed-image-row{ display:flex; align-items:center; gap:1.2rem; padding:1rem 0; border-top:1px solid rgba(255,255,255,.08); }
   .ed-image-row:first-of-type{ border-top:none; }
@@ -104,7 +108,7 @@
   .ed-image-row .name{ flex:1; color:var(--paper); font-size:.9rem; word-break:break-all; }
   .ed-image-row .ed-slide-actions{ margin:0; }
   #uploadDrop{ border:1.5px dashed rgba(255,255,255,.25); border-radius:8px; padding:2rem; text-align:center;
-    color:var(--paper-dim); margin-bottom:1rem; }
+    color:var(--paper-dim); margin-bottom:1rem; cursor:pointer; }
   #uploadDrop label{ color:var(--gold); cursor:pointer; text-decoration:underline; }
 </style>
 </head>
@@ -119,14 +123,28 @@
   <div class="ed-header">
     <div>
       <h1>Edit signage content</h1>
-      <p>Changes save automatically to this device. Use "Download backup" to copy your setup — including uploaded slides — to another screen.</p>
+      <p>Changes saved here sync to every screen showing this page \u2014 no need to update the TV separately.</p>
     </div>
     <button class="ed-close" id="closeEditor">Done — back to display</button>
   </div>
 
   <div class="ed-section">
+    <h2>Sync</h2>
+    <div id="syncStatus" class="sync-status warn">Checking connection\u2026</div>
+    <div class="ed-field" style="max-width:480px; margin-bottom:1rem;">
+      <label>GitHub repository (auto-detected)</label>
+      <input type="text" id="githubRepo" placeholder="yourname/your-repo">
+    </div>
+    <div class="ed-field" style="max-width:480px;">
+      <label>GitHub Personal Access Token (only needed on devices that edit content)</label>
+      <input type="password" id="githubToken" placeholder="github_pat_...">
+    </div>
+    <p class="hint">This token stays only in this browser \u2014 it's never saved into your content or visible to site visitors. Devices that only display the signage (like the Fire Stick) don't need one.</p>
+  </div>
+
+  <div class="ed-section">
     <h2>Your slides</h2>
-    <p class="hint" style="margin-top:0; margin-bottom:1.2rem;">Upload PNG or JPG exports from Canva. For an edge-to-edge fit, export at 1920&times;1080 (16:9) — in Canva: Share &rsaquo; Download &rsaquo; PNG or JPG. Other sizes will still display, centered with a dark border.</p>
+    <p class="hint" style="margin-top:0; margin-bottom:1.2rem;">Upload PNG or JPG exports from Canva. For an edge-to-edge fit, export at 1920&times;1080 (16:9) — in Canva: Share &rsaquo; Download &rsaquo; PNG or JPG. Uploads are saved into your GitHub repo automatically, so every screen picks them up.</p>
     <div id="uploadDrop">
       <label for="imageUpload">Choose image files to upload</label>
       <input type="file" id="imageUpload" accept="image/png,image/jpeg" multiple style="display:none;">
@@ -185,55 +203,10 @@
 </div>
 
 <script>
-const STORAGE_KEY = 'officeSignageConfig';
+const STORAGE_KEY = 'officeSignageConfigCache';
+const TOKEN_KEY = 'officeSignageGithubToken';
+const REPO_OVERRIDE_KEY = 'officeSignageGithubRepoOverride';
 const ACCENTS = { gold: 'var(--gold)', moss: 'var(--moss)', clay: 'var(--clay)' };
-const DB_NAME = 'officeSignageDB';
-const STORE = 'images';
-
-/* ---------------- IndexedDB (for uploaded slide images) ---------------- */
-function idbOpen(){
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-async function idbPut(id, blob){
-  const db = await idbOpen();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).put(blob, id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-async function idbGet(id){
-  const db = await idbOpen();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readonly');
-    const req = tx.objectStore(STORE).get(id);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-async function idbDelete(id){
-  const db = await idbOpen();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).delete(id);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-function blobToBase64(blob){
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
 
 const DEFAULT_CONFIG = {
   intervalMs: 12000,
@@ -265,21 +238,116 @@ const DEFAULT_CONFIG = {
   ]
 };
 
-function loadConfig(){
+/* ---------------- Device-local connection settings (never synced) ---------------- */
+function getToken(){ return localStorage.getItem(TOKEN_KEY) || ''; }
+function setToken(t){ if(t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); }
+function getRepoOverride(){ return localStorage.getItem(REPO_OVERRIDE_KEY) || ''; }
+function setRepoOverride(r){ if(r) localStorage.setItem(REPO_OVERRIDE_KEY, r); else localStorage.removeItem(REPO_OVERRIDE_KEY); }
+
+function getRepoSlug(){
+  const override = getRepoOverride();
+  if(override) return override;
+  try{
+    const host = location.hostname; // e.g. jennesee.github.io
+    const owner = host.split('.')[0];
+    const repo = location.pathname.split('/').filter(Boolean)[0];
+    if(owner && repo && host.endsWith('github.io')) return `${owner}/${repo}`;
+  }catch(e){}
+  return '';
+}
+
+/* ---------------- GitHub-backed storage ---------------- */
+const GITHUB_API = 'https://api.github.com';
+
+function utf8ToBase64(str){
+  const bytes = new TextEncoder().encode(str);
+  let binary = '';
+  bytes.forEach(b => binary += String.fromCharCode(b));
+  return btoa(binary);
+}
+function fileToBase64(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+async function ghRequest(repo, path, options={}){
+  const token = getToken();
+  const res = await fetch(`${GITHUB_API}/repos/${repo}/contents/${path}?ref=main`, {
+    ...options,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/vnd.github+json',
+      ...(options.headers || {})
+    }
+  });
+  return res;
+}
+async function getFileSha(repo, path){
+  const res = await ghRequest(repo, path);
+  if(res.status === 200){ const json = await res.json(); return json.sha; }
+  return null;
+}
+async function putFile(repo, path, base64Content, message){
+  const sha = await getFileSha(repo, path);
+  const body = { message, content: base64Content, branch: 'main' };
+  if(sha) body.sha = sha;
+  const res = await ghRequest(repo, path, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  if(!res.ok){ throw new Error(`GitHub save failed (${res.status}): ${await res.text()}`); }
+  return res.json();
+}
+async function deleteFile(repo, path){
+  const sha = await getFileSha(repo, path);
+  if(!sha) return;
+  await ghRequest(repo, path, { method:'DELETE', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ message:'Remove slide image', sha, branch:'main' }) });
+}
+function pathFromRawUrl(repo, url){
+  const prefix = `https://raw.githubusercontent.com/${repo}/main/`;
+  return url && url.startsWith(prefix) ? url.slice(prefix.length) : null;
+}
+async function uploadImageToGithub(repo, file){
+  const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+  const id = 'slide-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  const path = `slides/${id}.${ext}`;
+  const base64 = await fileToBase64(file);
+  await putFile(repo, path, base64, `Add slide image ${file.name}`);
+  return { url: `https://raw.githubusercontent.com/${repo}/main/${path}`, name: file.name };
+}
+async function fetchRemoteConfig(repo){
+  const res = await fetch(`https://raw.githubusercontent.com/${repo}/main/config.json?_=${Date.now()}`);
+  if(!res.ok) throw new Error('No shared config found yet');
+  return res.json();
+}
+async function saveRemoteConfig(repo, cfg){
+  const json = JSON.stringify(cfg, null, 2);
+  await putFile(repo, 'config.json', utf8ToBase64(json), 'Update signage content');
+}
+
+async function loadConfig(){
+  const repo = getRepoSlug();
+  if(repo){
+    try{
+      const remote = await fetchRemoteConfig(repo);
+      const merged = Object.assign(structuredClone(DEFAULT_CONFIG), remote);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+      return merged;
+    }catch(e){ console.warn('Using local cache/defaults \u2014 could not fetch shared config:', e.message); }
+  }
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
-    if(!raw) return structuredClone(DEFAULT_CONFIG);
-    return Object.assign(structuredClone(DEFAULT_CONFIG), JSON.parse(raw));
-  }catch(e){ return structuredClone(DEFAULT_CONFIG); }
+    if(raw) return Object.assign(structuredClone(DEFAULT_CONFIG), JSON.parse(raw));
+  }catch(e){}
+  return structuredClone(DEFAULT_CONFIG);
 }
-function saveConfig(cfg){ localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg)); }
 
-let config = loadConfig();
+let config = structuredClone(DEFAULT_CONFIG);
 let rotateTimer = null;
 let apptRefreshTimer = null;
+let remoteRefreshTimer = null;
 let apptSlideEl = null;
 let current = 0;
-let liveObjectUrls = [];
 
 /* ---------------- Automatic appointment sync ---------------- */
 function extractCalendarId(embedSrc){
@@ -330,23 +398,13 @@ function renderApptListHTML(items){
 
 /* ---------------- Display rendering ---------------- */
 async function renderStage(){
-  liveObjectUrls.forEach(u => URL.revokeObjectURL(u));
-  liveObjectUrls = [];
-
   const stage = document.getElementById('stage');
   const dotsWrap = document.getElementById('dots');
   stage.innerHTML = '';
   dotsWrap.innerHTML = '';
 
   const items = [];
-  for(const meta of config.imageSlides){
-    const blob = await idbGet(meta.id);
-    if(blob){
-      const url = URL.createObjectURL(blob);
-      liveObjectUrls.push(url);
-      items.push({ type:'image', url, name: meta.name });
-    }
-  }
+  (config.imageSlides || []).forEach(img => items.push({ type:'image', url: img.url, name: img.name }));
   if(config.showTextSlides !== false){
     config.slides.forEach(s => items.push({ type:'marketing', data:s }));
   }
@@ -408,10 +466,10 @@ async function renderStage(){
   clearInterval(apptRefreshTimer);
   if(config.showAppointments && config.appointmentsAutoSync && config.googleApiKey){
     apptRefreshTimer = setInterval(async () => {
-      const items = await getAppointmentsData();
+      const items2 = await getAppointmentsData();
       if(apptSlideEl){
         const body = apptSlideEl.querySelector('.appt-body');
-        if(body) body.innerHTML = renderApptListHTML(items);
+        if(body) body.innerHTML = renderApptListHTML(items2);
       }
     }, 5 * 60 * 1000);
   }
@@ -434,12 +492,14 @@ const editorEl = document.getElementById('editor');
 async function openEditor(){
   clearInterval(rotateTimer);
   clearInterval(apptRefreshTimer);
+  clearInterval(remoteRefreshTimer);
   await populateEditor(config);
   editorEl.classList.add('open');
 }
 function closeEditor(){
   editorEl.classList.remove('open');
   renderStage();
+  startRemoteRefresh();
 }
 document.getElementById('gear').addEventListener('click', openEditor);
 document.getElementById('closeEditor').addEventListener('click', closeEditor);
@@ -449,6 +509,11 @@ document.addEventListener('keydown', e => {
 });
 
 async function populateEditor(cfg){
+  const repo = getRepoSlug();
+  document.getElementById('githubRepo').value = repo;
+  document.getElementById('githubToken').value = getToken();
+  updateSyncStatus(repo);
+
   document.getElementById('showTextSlides').checked = cfg.showTextSlides !== false;
   document.getElementById('showCalendar').checked = !!cfg.showCalendar;
   document.getElementById('calendarSrc').value = cfg.calendarEmbedSrc || '';
@@ -467,11 +532,38 @@ async function populateEditor(cfg){
 
   const imageList = document.getElementById('imageList');
   imageList.innerHTML = '';
-  for(const meta of cfg.imageSlides){
-    const blob = await idbGet(meta.id);
-    imageList.appendChild(imageRow(meta, blob));
+  (cfg.imageSlides || []).forEach(meta => imageList.appendChild(imageRow(meta)));
+}
+
+function updateSyncStatus(repo){
+  const el = document.getElementById('syncStatus');
+  const token = getToken();
+  if(repo && token){
+    el.className = 'sync-status ok';
+    el.textContent = `\u2713 Connected \u2014 changes here will sync to ${repo}`;
+  } else if(repo){
+    el.className = 'sync-status warn';
+    el.textContent = `\u26a0 Repository detected (${repo}), but no token set \u2014 add one below so changes sync everywhere.`;
+  } else {
+    el.className = 'sync-status warn';
+    el.textContent = `\u26a0 Could not detect a GitHub Pages repository. Enter one manually below.`;
   }
 }
+document.getElementById('githubRepo').addEventListener('change', e => {
+  const auto = (() => {
+    try{
+      const host = location.hostname, owner = host.split('.')[0];
+      const repo = location.pathname.split('/').filter(Boolean)[0];
+      return host.endsWith('github.io') ? `${owner}/${repo}` : '';
+    }catch(err){ return ''; }
+  })();
+  setRepoOverride(e.target.value.trim() === auto ? '' : e.target.value.trim());
+  updateSyncStatus(getRepoSlug());
+});
+document.getElementById('githubToken').addEventListener('change', e => {
+  setToken(e.target.value.trim());
+  updateSyncStatus(getRepoSlug());
+});
 
 function slideRow(s){
   const row = document.createElement('div');
@@ -521,22 +613,25 @@ function apptRow(a){
   return row;
 }
 
-function imageRow(meta, blob){
+function imageRow(meta){
   const row = document.createElement('div');
   row.className = 'ed-image-row';
-  row.dataset.id = meta.id;
+  row.dataset.url = meta.url;
   row.dataset.name = meta.name || '';
-  const url = blob ? URL.createObjectURL(blob) : '';
   row.innerHTML = `
-    <img src="${url}" alt="">
-    <div class="name">${escapeHtml(meta.name || meta.id)}</div>
+    <img src="${meta.url}" alt="">
+    <div class="name">${escapeHtml(meta.name || meta.url)}</div>
     <div class="ed-slide-actions">
       <button class="btn" data-act="up">Move up</button>
       <button class="btn" data-act="down">Move down</button>
       <button class="btn danger" data-act="remove">Remove</button>
     </div>`;
   row.querySelector('[data-act="remove"]').onclick = async () => {
-    await idbDelete(meta.id);
+    const repo = getRepoSlug();
+    const path = pathFromRawUrl(repo, row.dataset.url);
+    if(repo && path && getToken()){
+      try{ await deleteFile(repo, path); }catch(e){ console.warn('Could not delete file from GitHub:', e); }
+    }
     row.remove();
   };
   row.querySelector('[data-act="up"]').onclick = () => { const prev = row.previousElementSibling; if(prev) row.parentNode.insertBefore(row, prev); };
@@ -553,10 +648,25 @@ document.getElementById('addAppt').onclick = () => {
 document.getElementById('uploadDrop').addEventListener('click', () => document.getElementById('imageUpload').click());
 document.getElementById('imageUpload').addEventListener('change', async e => {
   const files = Array.from(e.target.files || []);
+  const repo = getRepoSlug();
+  const token = getToken();
+  if(!repo || !token){
+    alert('Set up your GitHub repository and Personal Access Token in the "Sync" section above before uploading slides.');
+    e.target.value = '';
+    return;
+  }
   for(const file of files){
-    const id = 'img_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    await idbPut(id, file);
-    document.getElementById('imageList').appendChild(imageRow({ id, name: file.name }, file));
+    const placeholder = document.createElement('div');
+    placeholder.className = 'ed-image-row';
+    placeholder.innerHTML = `<div class="name">Uploading ${escapeHtml(file.name)}\u2026</div>`;
+    document.getElementById('imageList').appendChild(placeholder);
+    try{
+      const meta = await uploadImageToGithub(repo, file);
+      placeholder.replaceWith(imageRow(meta));
+    }catch(err){
+      placeholder.querySelector('.name').textContent = `Failed to upload ${file.name}: ${err.message}`;
+      placeholder.classList.add('danger');
+    }
   }
   e.target.value = '';
 });
@@ -574,8 +684,8 @@ function collectEditorData(){
     name: row.querySelector('.a-name').value.trim(),
     note: row.querySelector('.a-note').value.trim()
   }));
-  const imageSlides = Array.from(document.querySelectorAll('#imageList .ed-image-row')).map(row => ({
-    id: row.dataset.id,
+  const imageSlides = Array.from(document.querySelectorAll('#imageList .ed-image-row[data-url]')).map(row => ({
+    url: row.dataset.url,
     name: row.dataset.name
   }));
   return {
@@ -592,28 +702,42 @@ function collectEditorData(){
   };
 }
 
-document.getElementById('saveEditor').onclick = () => {
-  config = collectEditorData();
-  saveConfig(config);
-  closeEditor();
+document.getElementById('saveEditor').onclick = async () => {
+  const newConfig = collectEditorData();
+  const repo = getRepoSlug();
+  const token = getToken();
+  const saveBtn = document.getElementById('saveEditor');
+  config = newConfig;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+
+  if(repo && token){
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving\u2026';
+    try{
+      await saveRemoteConfig(repo, config);
+      closeEditor();
+    }catch(err){
+      alert('Saved on this device, but could not sync to GitHub:\n' + err.message + '\n\nCheck your token and repository name in the Sync section, then try again.');
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save changes';
+    }
+  } else {
+    alert('Saved on this device only. Add a GitHub repository and token in the "Sync" section so other screens (like the TV) see this update too.');
+    closeEditor();
+  }
 };
-document.getElementById('resetDefaults').onclick = async () => {
-  if(confirm('Reset all content back to the built-in defaults? Uploaded slides will be deleted from this device. This can\'t be undone.')){
-    for(const meta of config.imageSlides) await idbDelete(meta.id);
+
+document.getElementById('resetDefaults').onclick = () => {
+  if(confirm('Reset all content back to the built-in defaults? Uploaded slide files will remain in your GitHub repo but will no longer be shown. This can\'t be undone here.')){
     config = structuredClone(DEFAULT_CONFIG);
-    saveConfig(config);
-    await populateEditor(config);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    populateEditor(config);
   }
 };
-document.getElementById('exportCfg').onclick = async () => {
+document.getElementById('exportCfg').onclick = () => {
   const data = collectEditorData();
-  const imageData = [];
-  for(const meta of data.imageSlides){
-    const blob = await idbGet(meta.id);
-    if(blob) imageData.push({ id: meta.id, name: meta.name, data: await blobToBase64(blob) });
-  }
-  const exportObj = Object.assign({}, data, { imageData });
-  const blob = new Blob([JSON.stringify(exportObj)], { type:'application/json' });
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'signage-backup.json';
@@ -627,28 +751,43 @@ document.getElementById('importCfgFile').addEventListener('change', e => {
   reader.onload = async () => {
     try{
       const parsed = JSON.parse(reader.result);
-      if(Array.isArray(parsed.imageData)){
-        for(const img of parsed.imageData){
-          const resp = await fetch(img.data);
-          const blob = await resp.blob();
-          await idbPut(img.id, blob);
-        }
-      }
-      delete parsed.imageData;
       config = Object.assign(structuredClone(DEFAULT_CONFIG), parsed);
-      saveConfig(config);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
       await populateEditor(config);
-      alert('Backup loaded, including uploaded slides. Click "Save changes" to apply it.');
+      alert('Backup loaded. Click "Save changes" to sync it to GitHub.');
     }catch(err){ console.error(err); alert('That file could not be read as a valid backup.'); }
   };
   reader.readAsText(file);
 });
 
-function firstNameOnly(str){ return (str||'').trim().split(/\s+/)[0] || ''; }
 function escapeHtml(str){ return (str||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 function escapeAttr(str){ return escapeHtml(str).replace(/"/g,'&quot;'); }
+function firstNameOnly(str){ return (str||'').trim().split(/\s+/)[0] || ''; }
 
-renderStage();
+/* ---------------- Boot ---------------- */
+function startRemoteRefresh(){
+  clearInterval(remoteRefreshTimer);
+  const repo = getRepoSlug();
+  if(!repo) return;
+  remoteRefreshTimer = setInterval(async () => {
+    if(editorEl.classList.contains('open')) return;
+    try{
+      const remote = await fetchRemoteConfig(repo);
+      const merged = Object.assign(structuredClone(DEFAULT_CONFIG), remote);
+      if(JSON.stringify(merged) !== JSON.stringify(config)){
+        config = merged;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+        await renderStage();
+      }
+    }catch(e){ /* offline, or no shared config yet \u2014 ignore */ }
+  }, 5 * 60 * 1000);
+}
+
+(async function boot(){
+  config = await loadConfig();
+  await renderStage();
+  startRemoteRefresh();
+})();
 </script>
 </body>
 </html>
