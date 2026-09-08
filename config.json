@@ -3,10 +3,11 @@
   "slidesDelayMs": 15000,
   "slidesCount": 15,
   "showCalendar": true,
-  "calendarEmbedSrc": "https://calendar.google.com/calendar/embed?src=en.usa%23holiday%40group.v.calendar.google.com&ctz=America%2FDenver&mode=AGENDA&showTitle=0&showPrint=0&showTabs=0&showCalendars=0&showTz=0",
+  "calendarEmbedSrc": "https://calendar.google.com/calendar/embed?src=c_97fc8830ddb94cb589fbcbc0502ffe4235eef9f5a1f68cf24e87f974cf0d8dfa%40group.calendar.google.com&ctz=America%2FDenver",
   "calendarDurationMs": 20000,
   "showAppointments": false,
-  "appointmentsAutoSync": false,
+  "appointmentsAutoSync": true,
+  "appointmentsCalendarSrc": "<iframe src=\"https://calendar.google.com/calendar/embed?src=c_f6b57995de9d5f7de745206529dbe8f9525530b745a42a82e4b7d6343e509a5c%40group.calendar.google.com&ctz=America%2FDenver\" style=\"border: 0\" width=\"800\" height=\"600\" frameborder=\"0\" scrolling=\"no\"></iframe>",
   "googleApiKey": "",
   "appointmentsDurationMs": 15000,
   "appointments": [
