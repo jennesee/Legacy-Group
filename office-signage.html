@@ -128,15 +128,15 @@
     </div>
     <div class="row">
       <div class="ed-field">
-        <label>Seconds per slide (inside the deck)</label>
+        <label>Seconds per slide</label>
         <input type="number" id="slidesDelaySecs" min="2" max="120">
       </div>
       <div class="ed-field">
-        <label>Seconds to show the whole deck before cycling to calendar / appointments</label>
-        <input type="number" id="slidesSecs" min="15" max="600">
+        <label>Number of slides in your deck</label>
+        <input type="number" id="slidesCount" min="1" max="100">
       </div>
     </div>
-    <p class="hint">Change slide timing here \u2014 you don't need to go back to Google Slides' "Publish to web" dialog for this.</p>
+    <p class="hint">These two together tell the page when your deck has played through once, so it knows when to switch to the calendar/appointments. Update "Number of slides" whenever you add or remove slides in Google Slides.</p>
     <p class="hint">To change what's <em>in</em> the deck, just edit the Google Slides file itself \u2014 no need to come back here. This field only needs to change if you swap to a different deck entirely.</p>
   </div>
 
@@ -190,7 +190,7 @@ const REPO_OVERRIDE_KEY = 'officeSignageGithubRepoOverride';
 const DEFAULT_CONFIG = {
   slidesEmbedUrl: "https://docs.google.com/presentation/d/e/2PACX-1vRONOjPSo_avDk6oy9pGDd4EquVFJJEJbUe6Dddd3oz6AbkFH4z-Ygx47QTG0D6cpB-bXs8l8TPEza4/pubembed",
   slidesDelayMs: 8000,
-  slidesDurationMs: 90000,
+  slidesCount: 6,
   showCalendar: true,
   calendarDurationMs: 20000,
   showAppointments: false,
@@ -346,7 +346,8 @@ async function renderStage(){
   dotsWrap.innerHTML = '';
 
   const items = [];
-  items.push({ type:'slides', durationMs: config.slidesDurationMs || 90000 });
+  const deckDurationMs = (config.slidesCount || 6) * (config.slidesDelayMs || 8000);
+  items.push({ type:'slides', durationMs: deckDurationMs });
   if(config.showCalendar) items.push({ type:'calendar', durationMs: config.calendarDurationMs || 20000 });
   let appointmentsData = null;
   if(config.showAppointments){
@@ -449,7 +450,7 @@ function populateEditor(cfg){
 
   document.getElementById('slidesUrl').value = cfg.slidesEmbedUrl || '';
   document.getElementById('slidesDelaySecs').value = Math.round((cfg.slidesDelayMs || 8000) / 1000);
-  document.getElementById('slidesSecs').value = Math.round((cfg.slidesDurationMs || 90000) / 1000);
+  document.getElementById('slidesCount').value = cfg.slidesCount || 6;
 
   document.getElementById('showCalendar').checked = !!cfg.showCalendar;
   document.getElementById('calendarSrc').value = cfg.calendarEmbedSrc || '';
@@ -481,7 +482,7 @@ function collectEditorData(){
   return {
     slidesEmbedUrl: normalizeSlidesUrl(document.getElementById('slidesUrl').value, Number(document.getElementById('slidesDelaySecs').value) * 1000),
     slidesDelayMs: Math.max(2, Number(document.getElementById('slidesDelaySecs').value) || 8) * 1000,
-    slidesDurationMs: Math.max(15, Number(document.getElementById('slidesSecs').value) || 90) * 1000,
+    slidesCount: Math.max(1, Number(document.getElementById('slidesCount').value) || 6),
     showCalendar: document.getElementById('showCalendar').checked,
     calendarEmbedSrc: document.getElementById('calendarSrc').value.trim() || DEFAULT_CONFIG.calendarEmbedSrc,
     calendarDurationMs: Math.max(4, Number(document.getElementById('calSecs').value) || 20) * 1000,
