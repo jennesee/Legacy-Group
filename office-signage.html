@@ -126,10 +126,17 @@
       <label>Google Slides link (Publish to web &rsaquo; Embed &rsaquo; paste the address or the whole &lt;iframe&gt; code)</label>
       <textarea id="slidesUrl" placeholder="https://docs.google.com/presentation/d/e/.../pubembed?..."></textarea>
     </div>
-    <div class="ed-field" style="max-width:280px;">
-      <label>Seconds to show the deck before cycling to calendar / appointments</label>
-      <input type="number" id="slidesSecs" min="15" max="600">
+    <div class="row">
+      <div class="ed-field">
+        <label>Seconds per slide (inside the deck)</label>
+        <input type="number" id="slidesDelaySecs" min="2" max="120">
+      </div>
+      <div class="ed-field">
+        <label>Seconds to show the whole deck before cycling to calendar / appointments</label>
+        <input type="number" id="slidesSecs" min="15" max="600">
+      </div>
     </div>
+    <p class="hint">Change slide timing here \u2014 you don't need to go back to Google Slides' "Publish to web" dialog for this.</p>
     <p class="hint">To change what's <em>in</em> the deck, just edit the Google Slides file itself \u2014 no need to come back here. This field only needs to change if you swap to a different deck entirely.</p>
   </div>
 
@@ -181,7 +188,8 @@ const TOKEN_KEY = 'officeSignageGithubToken';
 const REPO_OVERRIDE_KEY = 'officeSignageGithubRepoOverride';
 
 const DEFAULT_CONFIG = {
-  slidesEmbedUrl: "https://docs.google.com/presentation/d/e/2PACX-1vRONOjPSo_avDk6oy9pGDd4EquVFJJEJbUe6Dddd3oz6AbkFH4z-Ygx47QTG0D6cpB-bXs8l8TPEza4/pubembed?start=true&loop=true&delayms=10000",
+  slidesEmbedUrl: "https://docs.google.com/presentation/d/e/2PACX-1vRONOjPSo_avDk6oy9pGDd4EquVFJJEJbUe6Dddd3oz6AbkFH4z-Ygx47QTG0D6cpB-bXs8l8TPEza4/pubembed",
+  slidesDelayMs: 8000,
   slidesDurationMs: 90000,
   showCalendar: true,
   calendarDurationMs: 20000,
@@ -272,7 +280,7 @@ let apptSlideEl = null;
 let currentIdx = 0;
 
 /* ---------------- Slides embed helper ---------------- */
-function normalizeSlidesUrl(value){
+function normalizeSlidesUrl(value, delayMs){
   const v = (value || '').trim();
   const match = v.match(/src="([^"]+)"/);
   let url = match ? match[1] : v;
@@ -281,7 +289,7 @@ function normalizeSlidesUrl(value){
     u.searchParams.set('start', 'true');
     u.searchParams.set('loop', 'true');
     u.searchParams.set('rm', 'minimal');
-    if(!u.searchParams.get('delayms')) u.searchParams.set('delayms', '10000');
+    u.searchParams.set('delayms', String(delayMs || 8000));
     return u.toString();
   }catch(e){ return url; }
 }
@@ -351,7 +359,7 @@ async function renderStage(){
     div.className = 'slide';
     if(item.type === 'slides'){
       div.classList.add('full-bleed');
-      div.innerHTML = `<iframe class="slide-frame" src="${normalizeSlidesUrl(config.slidesEmbedUrl)}" allowfullscreen></iframe>`;
+      div.innerHTML = `<iframe class="slide-frame" src="${normalizeSlidesUrl(config.slidesEmbedUrl, config.slidesDelayMs)}" allowfullscreen></iframe>`;
     } else if(item.type === 'calendar'){
       div.innerHTML = `
         <div class="cal-wrap">
@@ -440,6 +448,7 @@ function populateEditor(cfg){
   updateSyncStatus(repo);
 
   document.getElementById('slidesUrl').value = cfg.slidesEmbedUrl || '';
+  document.getElementById('slidesDelaySecs').value = Math.round((cfg.slidesDelayMs || 8000) / 1000);
   document.getElementById('slidesSecs').value = Math.round((cfg.slidesDurationMs || 90000) / 1000);
 
   document.getElementById('showCalendar').checked = !!cfg.showCalendar;
@@ -470,7 +479,8 @@ document.getElementById('githubToken').addEventListener('change', e => {
 
 function collectEditorData(){
   return {
-    slidesEmbedUrl: normalizeSlidesUrl(document.getElementById('slidesUrl').value),
+    slidesEmbedUrl: normalizeSlidesUrl(document.getElementById('slidesUrl').value, Number(document.getElementById('slidesDelaySecs').value) * 1000),
+    slidesDelayMs: Math.max(2, Number(document.getElementById('slidesDelaySecs').value) || 8) * 1000,
     slidesDurationMs: Math.max(15, Number(document.getElementById('slidesSecs').value) || 90) * 1000,
     showCalendar: document.getElementById('showCalendar').checked,
     calendarEmbedSrc: document.getElementById('calendarSrc').value.trim() || DEFAULT_CONFIG.calendarEmbedSrc,
