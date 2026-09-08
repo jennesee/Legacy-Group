@@ -1,6 +1,6 @@
 {
-  "slidesEmbedUrl": "https://docs.google.com/presentation/d/e/2PACX-1vRONOjPSo_avDk6oy9pGDd4EquVFJJEJbUe6Dddd3oz6AbkFH4z-Ygx47QTG0D6cpB-bXs8l8TPEza4/pubembed?start=true&loop=true&delayms=15000&rm=minimal",
-  "slidesDelayMs": 15000,
+  "slidesEmbedUrl": "https://docs.google.com/presentation/d/e/2PACX-1vRONOjPSo_avDk6oy9pGDd4EquVFJJEJbUe6Dddd3oz6AbkFH4z-Ygx47QTG0D6cpB-bXs8l8TPEza4/pubembed?start=true&loop=true&delayms=2000&rm=minimal",
+  "slidesDelayMs": 2000,
   "slidesCount": 15,
   "showCalendar": true,
   "calendarEmbedSrc": "https://calendar.google.com/calendar/embed?src=c_97fc8830ddb94cb589fbcbc0502ffe4235eef9f5a1f68cf24e87f974cf0d8dfa%40group.calendar.google.com&ctz=America%2FDenver",
