@@ -280,6 +280,7 @@ function normalizeSlidesUrl(value){
     const u = new URL(url);
     u.searchParams.set('start', 'true');
     u.searchParams.set('loop', 'true');
+    u.searchParams.set('rm', 'minimal');
     if(!u.searchParams.get('delayms')) u.searchParams.set('delayms', '10000');
     return u.toString();
   }catch(e){ return url; }
