@@ -88,6 +88,11 @@
   .sync-status{ font-size:.85rem; padding:.6rem 1rem; border-radius:4px; margin-bottom:1.2rem; }
   .sync-status.ok{ background:rgba(127,163,122,.15); color:var(--moss); }
   .sync-status.warn{ background:rgba(196,105,74,.15); color:var(--clay); }
+  .deck-row{ border:1px solid rgba(255,255,255,.1); border-radius:6px; padding:1.4rem; margin-bottom:1rem; }
+  .deck-row.is-active{ border-color:var(--gold); background:rgba(205,162,77,.06); }
+  .deck-row-top{ display:flex; align-items:center; gap:.8rem; margin-bottom:1rem; }
+  .deck-row-top label{ color:var(--paper); font-size:.9rem; margin:0; display:flex; align-items:center; gap:.5rem; }
+  .deck-active-tag{ font-size:.75rem; color:var(--gold); border:1px solid var(--gold); border-radius:20px; padding:.1rem .6rem; }
 </style>
 </head>
 <body>
@@ -121,23 +126,11 @@
   </div>
 
   <div class="ed-section">
-    <h2>Marketing slides</h2>
-    <div class="ed-field" style="margin-bottom:1rem;">
-      <label>Google Slides link (Publish to web &rsaquo; Embed &rsaquo; paste the address or the whole &lt;iframe&gt; code)</label>
-      <textarea id="slidesUrl" placeholder="https://docs.google.com/presentation/d/e/.../pubembed?..."></textarea>
-    </div>
-    <div class="row">
-      <div class="ed-field">
-        <label>Seconds per slide</label>
-        <input type="number" id="slidesDelaySecs" min="2" max="120">
-      </div>
-      <div class="ed-field">
-        <label>Number of slides in your deck</label>
-        <input type="number" id="slidesCount" min="1" max="100">
-      </div>
-    </div>
-    <p class="hint">These two together tell the page when your deck has played through once, so it knows when to switch to the calendar/appointments. Update "Number of slides" whenever you add or remove slides in Google Slides.</p>
-    <p class="hint">To change what's <em>in</em> the deck, just edit the Google Slides file itself \u2014 no need to come back here. This field only needs to change if you swap to a different deck entirely.</p>
+    <h2>Marketing slide decks</h2>
+    <p class="hint" style="margin-top:0; margin-bottom:1.2rem;">Keep as many decks as you need (e.g. one combined deck for the office, one Medicare-only deck for trade shows) and pick which one is live below. Content edits still happen directly in Google Slides &mdash; this is just for switching between decks and their timing.</p>
+    <div id="deckList"></div>
+    <button class="btn" id="addDeck" style="margin-top:1rem;">+ Add another deck</button>
+  </div>
   </div>
 
   <div class="ed-section">
@@ -192,9 +185,12 @@ const TOKEN_KEY = 'officeSignageGithubToken';
 const REPO_OVERRIDE_KEY = 'officeSignageGithubRepoOverride';
 
 const DEFAULT_CONFIG = {
-  slidesEmbedUrl: "https://docs.google.com/presentation/d/e/2PACX-1vRONOjPSo_avDk6oy9pGDd4EquVFJJEJbUe6Dddd3oz6AbkFH4z-Ygx47QTG0D6cpB-bXs8l8TPEza4/pubembed",
-  slidesDelayMs: 8000,
-  slidesCount: 6,
+  slideDecks: [
+    { id: 'combined', name: 'Office Waiting Room (Combined)',
+      embedUrl: "https://docs.google.com/presentation/d/e/2PACX-1vRONOjPSo_avDk6oy9pGDd4EquVFJJEJbUe6Dddd3oz6AbkFH4z-Ygx47QTG0D6cpB-bXs8l8TPEza4/pubembed",
+      delayMs: 8000, count: 6 }
+  ],
+  activeDeckId: 'combined',
   showCalendar: true,
   calendarDurationMs: 20000,
   showAppointments: false,
@@ -296,8 +292,13 @@ function normalizeSlidesUrl(value, delayMs){
 }
 
 /* ---------------- Automatic appointment sync ---------------- */
+function extractEmbedUrl(value){
+  const v = (value || '').trim();
+  const match = v.match(/src="([^"]+)"/);
+  return match ? match[1] : v;
+}
 function extractCalendarId(embedSrc){
-  try{ return new URL(embedSrc).searchParams.get('src') || ''; }catch(e){ return ''; }
+  try{ return new URL(extractEmbedUrl(embedSrc)).searchParams.get('src') || ''; }catch(e){ return ''; }
 }
 function parseEventTitle(summary){
   const parts = (summary || '').split(/\s[-\u2013\u2014]\s/);
@@ -333,6 +334,7 @@ async function getAppointmentsData(){
 }
 function firstNameOnly(str){ return (str || '').trim().split(/\s+/)[0] || ''; }
 function escapeHtml(str){ return (str||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function escapeAttr(str){ return escapeHtml(str).replace(/"/g,'&quot;'); }
 function renderApptListHTML(items){
   if(items === null) return `<p class="body-copy">Appointments are temporarily unavailable.</p>`;
   if(!items.length) return `<p class="body-copy">No appointments scheduled for today.</p>`;
@@ -347,8 +349,11 @@ async function renderStage(){
   dotsWrap.innerHTML = '';
 
   const items = [];
-  const deckDurationMs = (config.slidesCount || 6) * (config.slidesDelayMs || 8000);
-  items.push({ type:'slides', durationMs: deckDurationMs });
+  const activeDeck = (config.slideDecks || []).find(d => d.id === config.activeDeckId) || (config.slideDecks || [])[0];
+  if(activeDeck){
+    const deckDurationMs = (activeDeck.count || 6) * (activeDeck.delayMs || 8000);
+    items.push({ type:'slides', durationMs: deckDurationMs, embedUrl: activeDeck.embedUrl, delayMs: activeDeck.delayMs });
+  }
   if(config.showCalendar) items.push({ type:'calendar', durationMs: config.calendarDurationMs || 20000 });
   let appointmentsData = null;
   if(config.showAppointments){
@@ -361,12 +366,12 @@ async function renderStage(){
     div.className = 'slide';
     if(item.type === 'slides'){
       div.classList.add('full-bleed');
-      div.innerHTML = `<iframe class="slide-frame" src="${normalizeSlidesUrl(config.slidesEmbedUrl, config.slidesDelayMs)}" allowfullscreen></iframe>`;
+      div.innerHTML = `<iframe class="slide-frame" src="${normalizeSlidesUrl(item.embedUrl, item.delayMs)}" allowfullscreen></iframe>`;
     } else if(item.type === 'calendar'){
       div.innerHTML = `
         <div class="cal-wrap">
           <div class="cal-heading"><span class="service-label">This month</span></div>
-          <div class="cal-frame"><iframe src="${config.calendarEmbedSrc}" scrolling="no"></iframe></div>
+          <div class="cal-frame"><iframe src="${extractEmbedUrl(config.calendarEmbedSrc)}" scrolling="no"></iframe></div>
         </div>`;
     } else {
       div.innerHTML = `
@@ -449,9 +454,8 @@ function populateEditor(cfg){
   document.getElementById('githubToken').value = getToken();
   updateSyncStatus(repo);
 
-  document.getElementById('slidesUrl').value = cfg.slidesEmbedUrl || '';
-  document.getElementById('slidesDelaySecs').value = Math.round((cfg.slidesDelayMs || 8000) / 1000);
-  document.getElementById('slidesCount').value = cfg.slidesCount || 6;
+  document.getElementById('deckList').innerHTML = '';
+  (cfg.slideDecks || []).forEach(deck => document.getElementById('deckList').appendChild(deckRow(deck, deck.id === cfg.activeDeckId)));
 
   document.getElementById('showCalendar').checked = !!cfg.showCalendar;
   document.getElementById('calendarSrc').value = cfg.calendarEmbedSrc || '';
@@ -480,17 +484,71 @@ document.getElementById('githubToken').addEventListener('change', e => {
   updateSyncStatus(getRepoSlug());
 });
 
+function deckRow(deck, isActive){
+  const row = document.createElement('div');
+  row.className = 'deck-row' + (isActive ? ' is-active' : '');
+  row.dataset.id = deck.id;
+  row.innerHTML = `
+    <div class="deck-row-top">
+      <label><input type="radio" name="activeDeck" value="${escapeAttr(deck.id)}" ${isActive ? 'checked' : ''}> Show this deck now</label>
+      ${isActive ? '<span class="deck-active-tag">Currently live</span>' : ''}
+    </div>
+    <div class="ed-field" style="margin-bottom:1rem;">
+      <label>Deck name (for your own reference)</label>
+      <input type="text" class="d-name" value="${escapeAttr(deck.name)}" placeholder="e.g. Medicare Trade Show">
+    </div>
+    <div class="ed-field" style="margin-bottom:1rem;">
+      <label>Google Slides link (Publish to web &rsaquo; Embed &rsaquo; paste the address or the whole &lt;iframe&gt; code)</label>
+      <textarea class="d-url" placeholder="https://docs.google.com/presentation/d/e/.../pubembed?...">${escapeHtml(deck.embedUrl)}</textarea>
+    </div>
+    <div class="row">
+      <div class="ed-field">
+        <label>Seconds per slide</label>
+        <input type="number" class="d-delay" min="2" max="120" value="${Math.round((deck.delayMs||8000)/1000)}">
+      </div>
+      <div class="ed-field">
+        <label>Number of slides in this deck</label>
+        <input type="number" class="d-count" min="1" max="100" value="${deck.count||6}">
+      </div>
+    </div>
+    <div class="ed-slide-actions">
+      <button type="button" class="btn danger d-remove">Remove this deck</button>
+    </div>`;
+  row.querySelector('.d-remove').onclick = () => {
+    if(document.querySelectorAll('#deckList .deck-row').length <= 1){
+      alert('Keep at least one deck \u2014 add a replacement before removing this one.');
+      return;
+    }
+    row.remove();
+  };
+  return row;
+}
+document.getElementById('addDeck').onclick = () => {
+  const id = 'deck_' + Date.now().toString(36);
+  document.getElementById('deckList').appendChild(
+    deckRow({ id, name: '', embedUrl: '', delayMs: 8000, count: 6 }, false)
+  );
+};
+
 function collectEditorData(){
+  const slideDecks = Array.from(document.querySelectorAll('#deckList .deck-row')).map(row => ({
+    id: row.dataset.id,
+    name: row.querySelector('.d-name').value.trim() || 'Untitled deck',
+    embedUrl: normalizeSlidesUrl(row.querySelector('.d-url').value, Number(row.querySelector('.d-delay').value) * 1000),
+    delayMs: Math.max(2, Number(row.querySelector('.d-delay').value) || 8) * 1000,
+    count: Math.max(1, Number(row.querySelector('.d-count').value) || 6)
+  }));
+  const activeRadio = document.querySelector('#deckList input[name="activeDeck"]:checked');
+  const activeDeckId = activeRadio ? activeRadio.value : (slideDecks[0] && slideDecks[0].id);
   return {
-    slidesEmbedUrl: normalizeSlidesUrl(document.getElementById('slidesUrl').value, Number(document.getElementById('slidesDelaySecs').value) * 1000),
-    slidesDelayMs: Math.max(2, Number(document.getElementById('slidesDelaySecs').value) || 8) * 1000,
-    slidesCount: Math.max(1, Number(document.getElementById('slidesCount').value) || 6),
+    slideDecks: slideDecks.length ? slideDecks : DEFAULT_CONFIG.slideDecks,
+    activeDeckId,
     showCalendar: document.getElementById('showCalendar').checked,
-    calendarEmbedSrc: document.getElementById('calendarSrc').value.trim() || DEFAULT_CONFIG.calendarEmbedSrc,
+    calendarEmbedSrc: extractEmbedUrl(document.getElementById('calendarSrc').value) || DEFAULT_CONFIG.calendarEmbedSrc,
     calendarDurationMs: Math.max(4, Number(document.getElementById('calSecs').value) || 20) * 1000,
     showAppointments: document.getElementById('showAppointments').checked,
     appointmentsAutoSync: document.getElementById('autoSyncAppts').checked,
-    appointmentsCalendarSrc: document.getElementById('appointmentsCalendarSrc').value.trim(),
+    appointmentsCalendarSrc: extractEmbedUrl(document.getElementById('appointmentsCalendarSrc').value),
     googleApiKey: document.getElementById('googleApiKey').value.trim(),
     appointmentsDurationMs: Math.max(4, Number(document.getElementById('apptSecs').value) || 15) * 1000,
     appointments: config.appointments || DEFAULT_CONFIG.appointments
