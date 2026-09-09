@@ -112,6 +112,17 @@
   </div>
 
   <div class="ed-section">
+    <h2>This screen</h2>
+    <p class="hint" style="margin-top:0; margin-bottom:1.2rem;">These apply only to the device you're using right now &mdash; they save instantly, no token needed, and won't change what any other screen shows.</p>
+    <div class="ed-field" style="margin-bottom:1.2rem;">
+      <label>Slide deck to show on this screen</label>
+      <div id="localDeckPicker"></div>
+    </div>
+    <div class="checkbox-row"><input type="checkbox" id="localShowCalendar"><label for="localShowCalendar">Show important dates calendar on this screen</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="localShowAppointments"><label for="localShowAppointments">Show upcoming appointments on this screen</label></div>
+  </div>
+
+  <div class="ed-section">
     <h2>Sync</h2>
     <div id="syncStatus" class="sync-status warn">Checking connection\u2026</div>
     <div class="ed-field" style="max-width:480px; margin-bottom:1rem;">
@@ -135,7 +146,6 @@
 
   <div class="ed-section">
     <h2>Important dates</h2>
-    <div class="checkbox-row"><input type="checkbox" id="showCalendar"><label for="showCalendar">Show important dates calendar</label></div>
     <div class="ed-field">
       <label>Important dates calendar embed link (shown as-is, full month view)</label>
       <input type="text" id="calendarSrc" placeholder="https://calendar.google.com/calendar/embed?src=...">
@@ -145,7 +155,6 @@
 
   <div class="ed-section">
     <h2>Upcoming appointments <span style="color:var(--paper-dim); font-size:.85rem; font-family:'IBM Plex Sans';">(optional)</span></h2>
-    <div class="checkbox-row"><input type="checkbox" id="showAppointments"><label for="showAppointments">Show appointments slide</label></div>
     <div class="checkbox-row"><input type="checkbox" id="autoSyncAppts"><label for="autoSyncAppts">Pull appointments automatically</label></div>
     <div class="ed-field" style="max-width:480px; margin-bottom:1rem;">
       <label>Upcoming Appointments calendar embed link (used to identify the calendar &mdash; not shown as-is)</label>
@@ -215,6 +224,17 @@ function autoDetectRepo(){
   }catch(e){ return ''; }
 }
 function getRepoSlug(){ return getRepoOverride() || autoDetectRepo(); }
+
+const LOCAL_PREFS_KEY = 'officeSignageLocalPrefs';
+function getLocalPrefs(){
+  try{ return JSON.parse(localStorage.getItem(LOCAL_PREFS_KEY) || '{}'); }catch(e){ return {}; }
+}
+function setLocalPrefs(patch){
+  localStorage.setItem(LOCAL_PREFS_KEY, JSON.stringify(Object.assign(getLocalPrefs(), patch)));
+}
+function effectiveActiveDeckId(){ const p = getLocalPrefs(); return p.activeDeckId || config.activeDeckId; }
+function effectiveShowCalendar(){ const p = getLocalPrefs(); return p.showCalendar !== undefined ? p.showCalendar : config.showCalendar; }
+function effectiveShowAppointments(){ const p = getLocalPrefs(); return p.showAppointments !== undefined ? p.showAppointments : config.showAppointments; }
 
 /* ---------------- GitHub-backed shared settings ---------------- */
 const GITHUB_API = 'https://api.github.com';
@@ -349,14 +369,14 @@ async function renderStage(){
   dotsWrap.innerHTML = '';
 
   const items = [];
-  const activeDeck = (config.slideDecks || []).find(d => d.id === config.activeDeckId) || (config.slideDecks || [])[0];
+  const activeDeck = (config.slideDecks || []).find(d => d.id === effectiveActiveDeckId()) || (config.slideDecks || [])[0];
   if(activeDeck){
     const deckDurationMs = (activeDeck.count || 6) * (activeDeck.delayMs || 8000);
     items.push({ type:'slides', durationMs: deckDurationMs, embedUrl: activeDeck.embedUrl, delayMs: activeDeck.delayMs });
   }
-  if(config.showCalendar) items.push({ type:'calendar', durationMs: config.calendarDurationMs || 20000 });
+  if(effectiveShowCalendar()) items.push({ type:'calendar', durationMs: config.calendarDurationMs || 20000 });
   let appointmentsData = null;
-  if(config.showAppointments){
+  if(effectiveShowAppointments()){
     appointmentsData = await getAppointmentsData();
     items.push({ type:'appointments', durationMs: config.appointmentsDurationMs || 15000 });
   }
@@ -404,7 +424,7 @@ async function renderStage(){
   if(els.length > 1) scheduleNext();
 
   clearInterval(apptRefreshTimer);
-  if(config.showAppointments && config.appointmentsAutoSync && config.googleApiKey){
+  if(effectiveShowAppointments() && config.appointmentsAutoSync && config.googleApiKey){
     apptRefreshTimer = setInterval(async () => {
       const items2 = await getAppointmentsData();
       if(apptSlideEl){
@@ -455,13 +475,13 @@ function populateEditor(cfg){
   updateSyncStatus(repo);
 
   document.getElementById('deckList').innerHTML = '';
-  (cfg.slideDecks || []).forEach(deck => document.getElementById('deckList').appendChild(deckRow(deck, deck.id === cfg.activeDeckId)));
-
-  document.getElementById('showCalendar').checked = !!cfg.showCalendar;
+  (cfg.slideDecks || []).forEach(deck => document.getElementById('deckList').appendChild(deckRow(deck)));
+  buildLocalDeckPicker();
+  document.getElementById('localShowCalendar').checked = !!effectiveShowCalendar();
+  document.getElementById('localShowAppointments').checked = !!effectiveShowAppointments();
   document.getElementById('calendarSrc').value = cfg.calendarEmbedSrc || '';
   document.getElementById('calSecs').value = Math.round((cfg.calendarDurationMs || 20000) / 1000);
 
-  document.getElementById('showAppointments').checked = !!cfg.showAppointments;
   document.getElementById('autoSyncAppts').checked = !!cfg.appointmentsAutoSync;
   document.getElementById('appointmentsCalendarSrc').value = cfg.appointmentsCalendarSrc || '';
   document.getElementById('googleApiKey').value = cfg.googleApiKey || '';
@@ -484,15 +504,11 @@ document.getElementById('githubToken').addEventListener('change', e => {
   updateSyncStatus(getRepoSlug());
 });
 
-function deckRow(deck, isActive){
+function deckRow(deck){
   const row = document.createElement('div');
-  row.className = 'deck-row' + (isActive ? ' is-active' : '');
+  row.className = 'deck-row';
   row.dataset.id = deck.id;
   row.innerHTML = `
-    <div class="deck-row-top">
-      <label><input type="radio" name="activeDeck" value="${escapeAttr(deck.id)}" ${isActive ? 'checked' : ''}> Show this deck now</label>
-      ${isActive ? '<span class="deck-active-tag">Currently live</span>' : ''}
-    </div>
     <div class="ed-field" style="margin-bottom:1rem;">
       <label>Deck name (for your own reference)</label>
       <input type="text" class="d-name" value="${escapeAttr(deck.name)}" placeholder="e.g. Medicare Trade Show">
@@ -526,9 +542,24 @@ function deckRow(deck, isActive){
 document.getElementById('addDeck').onclick = () => {
   const id = 'deck_' + Date.now().toString(36);
   document.getElementById('deckList').appendChild(
-    deckRow({ id, name: '', embedUrl: '', delayMs: 8000, count: 6 }, false)
+    deckRow({ id, name: '', embedUrl: '', delayMs: 8000, count: 6 })
   );
 };
+
+function buildLocalDeckPicker(){
+  const wrap = document.getElementById('localDeckPicker');
+  wrap.innerHTML = '';
+  const current = effectiveActiveDeckId();
+  (config.slideDecks || []).forEach(deck => {
+    const label = document.createElement('label');
+    label.style.cssText = 'display:flex; align-items:center; gap:.5rem; margin-bottom:.5rem; color:var(--paper); font-size:.95rem;';
+    label.innerHTML = `<input type="radio" name="localActiveDeck" value="${escapeAttr(deck.id)}" ${deck.id === current ? 'checked' : ''}> ${escapeHtml(deck.name || deck.id)}`;
+    label.querySelector('input').addEventListener('change', e => setLocalPrefs({ activeDeckId: e.target.value }));
+    wrap.appendChild(label);
+  });
+}
+document.getElementById('localShowCalendar').addEventListener('change', e => setLocalPrefs({ showCalendar: e.target.checked }));
+document.getElementById('localShowAppointments').addEventListener('change', e => setLocalPrefs({ showAppointments: e.target.checked }));
 
 function collectEditorData(){
   const slideDecks = Array.from(document.querySelectorAll('#deckList .deck-row')).map(row => ({
@@ -538,15 +569,13 @@ function collectEditorData(){
     delayMs: Math.max(2, Number(row.querySelector('.d-delay').value) || 8) * 1000,
     count: Math.max(1, Number(row.querySelector('.d-count').value) || 6)
   }));
-  const activeRadio = document.querySelector('#deckList input[name="activeDeck"]:checked');
-  const activeDeckId = activeRadio ? activeRadio.value : (slideDecks[0] && slideDecks[0].id);
   return {
     slideDecks: slideDecks.length ? slideDecks : DEFAULT_CONFIG.slideDecks,
-    activeDeckId,
-    showCalendar: document.getElementById('showCalendar').checked,
+    activeDeckId: config.activeDeckId,
+    showCalendar: config.showCalendar,
     calendarEmbedSrc: extractEmbedUrl(document.getElementById('calendarSrc').value) || DEFAULT_CONFIG.calendarEmbedSrc,
     calendarDurationMs: Math.max(4, Number(document.getElementById('calSecs').value) || 20) * 1000,
-    showAppointments: document.getElementById('showAppointments').checked,
+    showAppointments: config.showAppointments,
     appointmentsAutoSync: document.getElementById('autoSyncAppts').checked,
     appointmentsCalendarSrc: extractEmbedUrl(document.getElementById('appointmentsCalendarSrc').value),
     googleApiKey: document.getElementById('googleApiKey').value.trim(),
