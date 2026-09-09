@@ -1,13 +1,27 @@
 {
-  "slidesEmbedUrl": "https://docs.google.com/presentation/d/e/2PACX-1vRONOjPSo_avDk6oy9pGDd4EquVFJJEJbUe6Dddd3oz6AbkFH4z-Ygx47QTG0D6cpB-bXs8l8TPEza4/pubembed?start=true&loop=true&delayms=2000&rm=minimal",
-  "slidesDelayMs": 2000,
-  "slidesCount": 15,
+  "slideDecks": [
+    {
+      "id": "combined",
+      "name": "Office Waiting Room (Combined)",
+      "embedUrl": "https://docs.google.com/presentation/d/e/2PACX-1vRONOjPSo_avDk6oy9pGDd4EquVFJJEJbUe6Dddd3oz6AbkFH4z-Ygx47QTG0D6cpB-bXs8l8TPEza4/pubembed?start=true&loop=true&rm=minimal&delayms=8000",
+      "delayMs": 8000,
+      "count": 6
+    },
+    {
+      "id": "deck_mttg450p",
+      "name": "Test",
+      "embedUrl": "",
+      "delayMs": 8000,
+      "count": 6
+    }
+  ],
+  "activeDeckId": "combined",
   "showCalendar": true,
   "calendarEmbedSrc": "https://calendar.google.com/calendar/embed?src=c_97fc8830ddb94cb589fbcbc0502ffe4235eef9f5a1f68cf24e87f974cf0d8dfa%40group.calendar.google.com&ctz=America%2FDenver",
   "calendarDurationMs": 5000,
   "showAppointments": true,
   "appointmentsAutoSync": true,
-  "appointmentsCalendarSrc": "<iframe src=\"https://calendar.google.com/calendar/embed?src=c_f6b57995de9d5f7de745206529dbe8f9525530b745a42a82e4b7d6343e509a5c%40group.calendar.google.com&ctz=America%2FDenver\" style=\"border: 0\" width=\"800\" height=\"600\" frameborder=\"0\" scrolling=\"no\"></iframe>",
+  "appointmentsCalendarSrc": "https://calendar.google.com/calendar/embed?src=c_f6b57995de9d5f7de745206529dbe8f9525530b745a42a82e4b7d6343e509a5c%40group.calendar.google.com&ctz=America%2FDenver",
   "googleApiKey": "739380508047-63ab7t6ff9oq70s52sivo4qqdncret8k.apps.googleusercontent.com",
   "appointmentsDurationMs": 15000,
   "appointments": [
