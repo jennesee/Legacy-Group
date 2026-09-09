@@ -10,8 +10,8 @@
     {
       "id": "deck_mttg450p",
       "name": "Test",
-      "embedUrl": "https://docs.google.com/presentation/d/e/2PACX-1vSM8IPySseRrbbFmxBFuHKV4gNV3mXrB1XOV9qCe1UFeXjUqnZISEjUGfwLIZVVutGIcG-MWbRXJlQC/pubembed?start=true&loop=true&delayms=8000&rm=minimal",
-      "delayMs": 8000,
+      "embedUrl": "https://docs.google.com/presentation/d/e/2PACX-1vSM8IPySseRrbbFmxBFuHKV4gNV3mXrB1XOV9qCe1UFeXjUqnZISEjUGfwLIZVVutGIcG-MWbRXJlQC/pubembed?start=true&loop=true&delayms=2000&rm=minimal",
+      "delayMs": 2000,
       "count": 1
     }
   ],
