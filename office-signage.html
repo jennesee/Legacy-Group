@@ -459,9 +459,12 @@ document.addEventListener('visibilitychange', () => {
 });
 requestWakeLock();
 
-// A clean full-page reload every hour guards against slow memory buildup
-// from long-running embedded iframes on lower-powered TV hardware.
-setInterval(() => { location.reload(); }, 60 * 60 * 1000);
+// Periodically rebuild the slideshow content (not a full page reload) to guard
+// against slow memory buildup from long-running embedded iframes, without
+// triggering browser chrome (like Silk's address bar) to reappear.
+setInterval(() => {
+  if(!editorEl.classList.contains('open')) renderStage();
+}, 60 * 60 * 1000);
 
 /* ---------------- Editor ---------------- */
 const editorEl = document.getElementById('editor');
