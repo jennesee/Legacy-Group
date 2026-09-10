@@ -3,27 +3,27 @@
     {
       "id": "combined",
       "name": "Office Waiting Room (Combined)",
-      "embedUrl": "https://docs.google.com/presentation/d/e/2PACX-1vRONOjPSo_avDk6oy9pGDd4EquVFJJEJbUe6Dddd3oz6AbkFH4z-Ygx47QTG0D6cpB-bXs8l8TPEza4/pubembed?start=true&loop=true&rm=minimal&delayms=8000",
-      "delayMs": 8000,
-      "count": 6
+      "embedUrl": "https://docs.google.com/presentation/d/e/2PACX-1vRONOjPSo_avDk6oy9pGDd4EquVFJJEJbUe6Dddd3oz6AbkFH4z-Ygx47QTG0D6cpB-bXs8l8TPEza4/pubembed?start=true&loop=true&rm=minimal&delayms=15000",
+      "delayMs": 15000,
+      "count": 15
     },
     {
       "id": "deck_mttg450p",
       "name": "Test",
-      "embedUrl": "https://docs.google.com/presentation/d/e/2PACX-1vSM8IPySseRrbbFmxBFuHKV4gNV3mXrB1XOV9qCe1UFeXjUqnZISEjUGfwLIZVVutGIcG-MWbRXJlQC/pubembed?start=true&loop=true&delayms=2000&rm=minimal",
-      "delayMs": 2000,
+      "embedUrl": "https://docs.google.com/presentation/d/e/2PACX-1vSM8IPySseRrbbFmxBFuHKV4gNV3mXrB1XOV9qCe1UFeXjUqnZISEjUGfwLIZVVutGIcG-MWbRXJlQC/pubembed?start=true&loop=true&delayms=15000&rm=minimal",
+      "delayMs": 15000,
       "count": 1
     }
   ],
   "activeDeckId": "combined",
   "showCalendar": true,
   "calendarEmbedSrc": "https://calendar.google.com/calendar/embed?src=c_97fc8830ddb94cb589fbcbc0502ffe4235eef9f5a1f68cf24e87f974cf0d8dfa%40group.calendar.google.com&ctz=America%2FDenver",
-  "calendarDurationMs": 5000,
+  "calendarDurationMs": 30000,
   "showAppointments": true,
   "appointmentsAutoSync": true,
   "appointmentsCalendarSrc": "https://calendar.google.com/calendar/embed?src=c_f6b57995de9d5f7de745206529dbe8f9525530b745a42a82e4b7d6343e509a5c%40group.calendar.google.com&ctz=America%2FDenver",
   "googleApiKey": "AIzaSyDEEj5F5LekBTC1bDFfOvMpTpMhN0gGSlY",
-  "appointmentsDurationMs": 15000,
+  "appointmentsDurationMs": 30000,
   "appointments": [
     {
       "time": "10:00 AM",
