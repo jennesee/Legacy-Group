@@ -445,6 +445,24 @@ function tick(){
 }
 tick(); setInterval(tick, 30000);
 
+/* ---------------- Keep the screen awake, and self-heal over long runtimes ---------------- */
+let wakeLock = null;
+async function requestWakeLock(){
+  try{
+    if('wakeLock' in navigator){
+      wakeLock = await navigator.wakeLock.request('screen');
+    }
+  }catch(e){ console.warn('Wake lock unavailable:', e); }
+}
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible') requestWakeLock();
+});
+requestWakeLock();
+
+// A clean full-page reload every 2 hours guards against slow memory buildup
+// from long-running embedded iframes on lower-powered TV hardware.
+setInterval(() => { location.reload(); }, 2 * 60 * 60 * 1000);
+
 /* ---------------- Editor ---------------- */
 const editorEl = document.getElementById('editor');
 
