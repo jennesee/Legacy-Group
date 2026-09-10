@@ -459,9 +459,9 @@ document.addEventListener('visibilitychange', () => {
 });
 requestWakeLock();
 
-// A clean full-page reload every 2 hours guards against slow memory buildup
+// A clean full-page reload every hour guards against slow memory buildup
 // from long-running embedded iframes on lower-powered TV hardware.
-setInterval(() => { location.reload(); }, 2 * 60 * 60 * 1000);
+setInterval(() => { location.reload(); }, 60 * 60 * 1000);
 
 /* ---------------- Editor ---------------- */
 const editorEl = document.getElementById('editor');
