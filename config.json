@@ -24,6 +24,8 @@
   "appointmentsCalendarSrc": "https://calendar.google.com/calendar/embed?src=c_f6b57995de9d5f7de745206529dbe8f9525530b745a42a82e4b7d6343e509a5c%40group.calendar.google.com&ctz=America%2FDenver",
   "googleApiKey": "AIzaSyDEEj5F5LekBTC1bDFfOvMpTpMhN0gGSlY",
   "appointmentsDurationMs": 30000,
+  "showDatesList": false,
+  "datesListDurationMs": 30000,
   "appointments": [
     {
       "time": "10:00 AM",
