@@ -120,6 +120,7 @@
     </div>
     <div class="checkbox-row"><input type="checkbox" id="localShowCalendar"><label for="localShowCalendar">Show important dates calendar on this screen</label></div>
     <div class="checkbox-row"><input type="checkbox" id="localShowAppointments"><label for="localShowAppointments">Show upcoming appointments on this screen</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="localShowDatesList"><label for="localShowDatesList">Show upcoming important dates (list) on this screen</label></div>
   </div>
 
   <div class="ed-section">
@@ -171,6 +172,15 @@
   </div>
 
   <div class="ed-section">
+    <h2>Upcoming important dates (list) <span style="color:var(--paper-dim); font-size:.85rem; font-family:'IBM Plex Sans';">(optional)</span></h2>
+    <p class="hint" style="margin-top:0;">Shows the next 30 days of events from your Important Dates calendar as a scannable list &mdash; pairs well with the month view above for clients who prefer to see it laid out. Uses the same calendar link and the same Google API key already set up above &mdash; nothing new to configure.</p>
+    <div class="ed-field" style="max-width:280px; margin-top:1rem;">
+      <label>Seconds to show this slide</label>
+      <input type="number" id="datesListSecs" min="4" max="120">
+    </div>
+  </div>
+
+  <div class="ed-section">
     <h2>Calendar slide timing</h2>
     <div class="ed-field" style="max-width:280px;">
       <label>Seconds to show the calendar</label>
@@ -203,6 +213,8 @@ const DEFAULT_CONFIG = {
   calendarDurationMs: 20000,
   showAppointments: false,
   appointmentsDurationMs: 15000,
+  showDatesList: false,
+  datesListDurationMs: 15000,
   appointmentsAutoSync: false,
   appointmentsCalendarSrc: '',
   googleApiKey: '',
@@ -234,6 +246,7 @@ function setLocalPrefs(patch){
 function effectiveActiveDeckId(){ const p = getLocalPrefs(); return p.activeDeckId || config.activeDeckId; }
 function effectiveShowCalendar(){ const p = getLocalPrefs(); return p.showCalendar !== undefined ? p.showCalendar : config.showCalendar; }
 function effectiveShowAppointments(){ const p = getLocalPrefs(); return p.showAppointments !== undefined ? p.showAppointments : config.showAppointments; }
+function effectiveShowDatesList(){ const p = getLocalPrefs(); return p.showDatesList !== undefined ? p.showDatesList : config.showDatesList; }
 
 /* ---------------- GitHub-backed shared settings ---------------- */
 const GITHUB_API = 'https://api.github.com';
@@ -291,8 +304,10 @@ async function loadConfig(){
 let config = structuredClone(DEFAULT_CONFIG);
 let rotateTimeout = null;
 let apptRefreshTimer = null;
+let datesListRefreshTimer = null;
 let remoteRefreshTimer = null;
 let apptSlideEl = null;
+let datesListSlideEl = null;
 let currentIdx = 0;
 
 /* ---------------- Slides embed helper ---------------- */
@@ -360,6 +375,42 @@ function renderApptListHTML(items){
   return `<ul class="appt-list">${items.map(a => `<li class="appt-row"><span class="appt-time">${escapeHtml(a.time)}</span><span class="appt-name">${escapeHtml(firstNameOnly(a.name))}</span>${a.note ? `<span class="appt-note">\u2014 ${escapeHtml(a.note)}</span>` : ''}</li>`).join('')}</ul>`;
 }
 
+/* ---------------- Upcoming important dates (next 30 days, list view) ---------------- */
+async function fetchUpcomingImportantDates(){
+  const calId = extractCalendarId(config.calendarEmbedSrc);
+  if(!calId || !config.googleApiKey) throw new Error('Missing calendar ID or API key');
+  const now = new Date();
+  const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`
+    + `?key=${encodeURIComponent(config.googleApiKey)}`
+    + `&timeMin=${encodeURIComponent(now.toISOString())}`
+    + `&timeMax=${encodeURIComponent(in30.toISOString())}`
+    + `&singleEvents=true&orderBy=startTime&maxResults=20`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('Calendar request failed: ' + res.status);
+  const json = await res.json();
+  const fmt = d => d.toLocaleDateString([], { month:'short', day:'numeric' });
+  return (json.items || []).map(ev => {
+    const isAllDay = !!(ev.start && ev.start.date);
+    const start = new Date(isAllDay ? ev.start.date : ev.start.dateTime);
+    let dateLabel = fmt(start);
+    if(isAllDay && ev.end && ev.end.date){
+      const lastDay = new Date(new Date(ev.end.date).getTime() - 24 * 60 * 60 * 1000);
+      if(lastDay.toDateString() !== start.toDateString()) dateLabel = `${fmt(start)} \u2013 ${fmt(lastDay)}`;
+    }
+    return { dateLabel, title: ev.summary || '' };
+  });
+}
+async function getImportantDatesData(){
+  try{ return await fetchUpcomingImportantDates(); }
+  catch(e){ console.error('Important dates fetch failed', e); return null; }
+}
+function renderDatesListHTML(items){
+  if(items === null) return `<p class="body-copy">Upcoming dates are temporarily unavailable.</p>`;
+  if(!items.length) return `<p class="body-copy">No important dates in the next 30 days.</p>`;
+  return `<ul class="appt-list">${items.map(d => `<li class="appt-row"><span class="appt-time">${escapeHtml(d.dateLabel)}</span><span class="appt-name">${escapeHtml(d.title)}</span></li>`).join('')}</ul>`;
+}
+
 /* ---------------- Display rendering ---------------- */
 async function renderStage(){
   const stage = document.getElementById('stage');
@@ -379,6 +430,11 @@ async function renderStage(){
     appointmentsData = await getAppointmentsData();
     items.push({ type:'appointments', durationMs: config.appointmentsDurationMs || 15000 });
   }
+  let datesListData = null;
+  if(effectiveShowDatesList()){
+    datesListData = await getImportantDatesData();
+    items.push({ type:'datesList', durationMs: config.datesListDurationMs || 15000 });
+  }
 
   const els = items.map(item => {
     const div = document.createElement('div');
@@ -392,13 +448,20 @@ async function renderStage(){
           <div class="cal-heading"><span class="service-label">This month</span></div>
           <div class="cal-frame"><iframe src="${extractEmbedUrl(config.calendarEmbedSrc)}" scrolling="no"></iframe></div>
         </div>`;
-    } else {
+    } else if(item.type === 'appointments'){
       div.innerHTML = `
         <div class="cal-wrap">
           <div class="cal-heading"><span class="service-label">Today</span><h2>Upcoming appointments</h2></div>
           <div class="appt-body">${renderApptListHTML(appointmentsData)}</div>
         </div>`;
       apptSlideEl = div;
+    } else {
+      div.innerHTML = `
+        <div class="cal-wrap">
+          <div class="cal-heading"><span class="service-label">Next 30 days</span><h2>Upcoming important dates</h2></div>
+          <div class="dates-body">${renderDatesListHTML(datesListData)}</div>
+        </div>`;
+      datesListSlideEl = div;
     }
     stage.appendChild(div);
     return div;
@@ -429,6 +492,17 @@ async function renderStage(){
       if(apptSlideEl){
         const body = apptSlideEl.querySelector('.appt-body');
         if(body) body.innerHTML = renderApptListHTML(items2);
+      }
+    }, 5 * 60 * 1000);
+  }
+
+  clearInterval(datesListRefreshTimer);
+  if(effectiveShowDatesList() && config.googleApiKey){
+    datesListRefreshTimer = setInterval(async () => {
+      const items3 = await getImportantDatesData();
+      if(datesListSlideEl){
+        const body = datesListSlideEl.querySelector('.dates-body');
+        if(body) body.innerHTML = renderDatesListHTML(items3);
       }
     }, 5 * 60 * 1000);
   }
@@ -472,6 +546,7 @@ const editorEl = document.getElementById('editor');
 async function openEditor(){
   clearTimeout(rotateTimeout);
   clearInterval(apptRefreshTimer);
+  clearInterval(datesListRefreshTimer);
   clearInterval(remoteRefreshTimer);
   populateEditor(config);
   editorEl.classList.add('open');
@@ -499,6 +574,7 @@ function populateEditor(cfg){
   buildLocalDeckPicker();
   document.getElementById('localShowCalendar').checked = !!effectiveShowCalendar();
   document.getElementById('localShowAppointments').checked = !!effectiveShowAppointments();
+  document.getElementById('localShowDatesList').checked = !!effectiveShowDatesList();
   document.getElementById('calendarSrc').value = cfg.calendarEmbedSrc || '';
   document.getElementById('calSecs').value = Math.round((cfg.calendarDurationMs || 20000) / 1000);
 
@@ -506,6 +582,7 @@ function populateEditor(cfg){
   document.getElementById('appointmentsCalendarSrc').value = cfg.appointmentsCalendarSrc || '';
   document.getElementById('googleApiKey').value = cfg.googleApiKey || '';
   document.getElementById('apptSecs').value = Math.round((cfg.appointmentsDurationMs || 15000) / 1000);
+  document.getElementById('datesListSecs').value = Math.round((cfg.datesListDurationMs || 15000) / 1000);
 }
 
 function updateSyncStatus(repo){
@@ -580,6 +657,7 @@ function buildLocalDeckPicker(){
 }
 document.getElementById('localShowCalendar').addEventListener('change', e => setLocalPrefs({ showCalendar: e.target.checked }));
 document.getElementById('localShowAppointments').addEventListener('change', e => setLocalPrefs({ showAppointments: e.target.checked }));
+document.getElementById('localShowDatesList').addEventListener('change', e => setLocalPrefs({ showDatesList: e.target.checked }));
 
 function collectEditorData(){
   const slideDecks = Array.from(document.querySelectorAll('#deckList .deck-row')).map(row => ({
@@ -600,6 +678,8 @@ function collectEditorData(){
     appointmentsCalendarSrc: extractEmbedUrl(document.getElementById('appointmentsCalendarSrc').value),
     googleApiKey: document.getElementById('googleApiKey').value.trim(),
     appointmentsDurationMs: Math.max(4, Number(document.getElementById('apptSecs').value) || 15) * 1000,
+    showDatesList: config.showDatesList,
+    datesListDurationMs: Math.max(4, Number(document.getElementById('datesListSecs').value) || 15) * 1000,
     appointments: config.appointments || DEFAULT_CONFIG.appointments
   };
 }
