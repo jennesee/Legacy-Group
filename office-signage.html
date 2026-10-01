@@ -34,6 +34,15 @@
   .cal-heading h2{ font-family:'Fraunces', serif; font-weight:500; font-size:clamp(1.8rem,3vw,2.6rem); color:var(--paper); margin:0; }
   .cal-frame{ flex:1; border-radius:6px; overflow:hidden; background:var(--paper); box-shadow:0 0 0 1px rgba(255,255,255,.06); }
   .cal-frame iframe{ width:100%; height:100%; border:0; display:block; }
+  .month-grid{ flex:1; display:flex; flex-direction:column; }
+  .month-headrow{ display:grid; grid-template-columns: repeat(7,1fr); margin-bottom: 1.4vh; }
+  .month-headrow .wd{ text-align:center; color:var(--paper-dim); font-size:clamp(.8rem,1vw,1.2rem); letter-spacing:.08em; }
+  .month-days{ flex:1; display:grid; grid-template-columns: repeat(7,1fr); grid-auto-rows:1fr; gap:.4vh .4vw; }
+  .day-cell{ display:flex; align-items:center; justify-content:center; }
+  .day-cell span{ font-family:'Fraunces', serif; font-size:clamp(1.1rem,2.4vw,2.3rem); color:var(--paper);
+    width:2.5em; height:2.5em; display:flex; align-items:center; justify-content:center; border-radius:50%; }
+  .day-cell.today span{ background:var(--gold); color:var(--ink); font-weight:600; }
+  .day-cell.blank{ visibility:hidden; }
   .service-label{ font-size:1.1vw; color:var(--gold); letter-spacing:.02em; }
 
   .appt-list{ list-style:none; padding:0; margin:0; }
@@ -118,7 +127,7 @@
       <label>Slide deck to show on this screen</label>
       <div id="localDeckPicker"></div>
     </div>
-    <div class="checkbox-row"><input type="checkbox" id="localShowCalendar"><label for="localShowCalendar">Show important dates calendar on this screen</label></div>
+    <div class="checkbox-row"><input type="checkbox" id="localShowCalendar"><label for="localShowCalendar">Show month calendar on this screen</label></div>
     <div class="checkbox-row"><input type="checkbox" id="localShowAppointments"><label for="localShowAppointments">Show upcoming appointments on this screen</label></div>
     <div class="checkbox-row"><input type="checkbox" id="localShowDatesList"><label for="localShowDatesList">Show upcoming important dates (list) on this screen</label></div>
   </div>
@@ -147,7 +156,7 @@
   <div class="ed-section">
     <h2>Important dates</h2>
     <div class="ed-field">
-      <label>Important dates calendar embed link (shown as-is, full month view)</label>
+      <label>Important dates calendar embed link (used to power the "Upcoming important dates" list below &mdash; the month view is now a built-in design, no live calendar needed)</label>
       <input type="text" id="calendarSrc" placeholder="https://calendar.google.com/calendar/embed?src=...">
     </div>
     <p class="hint">Google Calendar &rsaquo; your "Important Dates" calendar's Settings &rsaquo; "Integrate calendar" &rsaquo; copy the address inside <code>src="..."</code> and paste it above.</p>
@@ -411,6 +420,32 @@ function renderDatesListHTML(items){
   return `<ul class="appt-list">${items.map(d => `<li class="appt-row"><span class="appt-time">${escapeHtml(d.dateLabel)}</span><span class="appt-name">${escapeHtml(d.title)}</span></li>`).join('')}</ul>`;
 }
 
+/* ---------------- Custom month calendar (no live data needed) ---------------- */
+function buildMonthCalendarHTML(){
+  const now = new Date();
+  const year = now.getFullYear(), month = now.getMonth();
+  const monthName = now.toLocaleDateString([], { month:'long' });
+  const startWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayDate = now.getDate();
+  const weekdayLabels = ['S','M','T','W','T','F','S'];
+  let cells = '';
+  for(let i=0;i<startWeekday;i++) cells += `<div class="day-cell blank"></div>`;
+  for(let d=1; d<=daysInMonth; d++){
+    cells += `<div class="day-cell${d === todayDate ? ' today' : ''}"><span>${d}</span></div>`;
+  }
+  const trailing = (7 - ((startWeekday + daysInMonth) % 7)) % 7;
+  for(let i=0;i<trailing;i++) cells += `<div class="day-cell blank"></div>`;
+  return `
+    <div class="cal-wrap">
+      <div class="cal-heading"><span class="service-label">This month</span><h2>${monthName} ${year}</h2></div>
+      <div class="month-grid">
+        <div class="month-headrow">${weekdayLabels.map(w => `<div class="wd">${w}</div>`).join('')}</div>
+        <div class="month-days">${cells}</div>
+      </div>
+    </div>`;
+}
+
 /* ---------------- Display rendering ---------------- */
 async function renderStage(){
   const stage = document.getElementById('stage');
@@ -443,11 +478,7 @@ async function renderStage(){
       div.classList.add('full-bleed');
       div.innerHTML = `<iframe class="slide-frame" src="${normalizeSlidesUrl(item.embedUrl, item.delayMs)}" allowfullscreen></iframe>`;
     } else if(item.type === 'calendar'){
-      div.innerHTML = `
-        <div class="cal-wrap">
-          <div class="cal-heading"><span class="service-label">This month</span></div>
-          <div class="cal-frame"><iframe src="${extractEmbedUrl(config.calendarEmbedSrc)}" scrolling="no"></iframe></div>
-        </div>`;
+      div.innerHTML = buildMonthCalendarHTML();
     } else if(item.type === 'appointments'){
       div.innerHTML = `
         <div class="cal-wrap">
