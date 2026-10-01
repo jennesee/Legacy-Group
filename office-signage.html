@@ -35,14 +35,16 @@
   .cal-frame{ flex:1; border-radius:6px; overflow:hidden; background:var(--paper); box-shadow:0 0 0 1px rgba(255,255,255,.06); }
   .cal-frame iframe{ width:100%; height:100%; border:0; display:block; }
   .month-grid{ flex:1; display:flex; flex-direction:column; }
-  .month-headrow{ display:grid; grid-template-columns: repeat(7,1fr); margin-bottom: 1.4vh; }
-  .month-headrow .wd{ text-align:center; color:var(--paper-dim); font-size:clamp(.8rem,1vw,1.2rem); letter-spacing:.08em; }
-  .month-days{ flex:1; display:grid; grid-template-columns: repeat(7,1fr); grid-auto-rows:1fr; gap:.4vh .4vw; }
-  .day-cell{ display:flex; align-items:center; justify-content:center; }
-  .day-cell span{ font-family:'Fraunces', serif; font-size:clamp(1.1rem,2.4vw,2.3rem); color:var(--paper);
-    width:2.5em; height:2.5em; display:flex; align-items:center; justify-content:center; border-radius:50%; }
-  .day-cell.today span{ background:var(--gold); color:var(--ink); font-weight:600; }
-  .day-cell.blank{ visibility:hidden; }
+  .month-headrow{ display:grid; grid-template-columns: repeat(7,1fr); margin-bottom: 1.6vh; }
+  .month-headrow .wd{ text-align:center; color:var(--paper-dim); font-weight:600; font-size:clamp(1rem,1.4vw,1.6rem); letter-spacing:.03em; }
+  .month-days{ flex:1; display:grid; grid-template-columns: repeat(7,1fr); grid-auto-rows:1fr; gap:.6vh .6vw; }
+  .day-cell{ display:flex; align-items:center; justify-content:center;
+    border:1px solid rgba(255,255,255,.14); border-radius:10px; background:rgba(255,255,255,.025); }
+  .day-cell.blank{ visibility:hidden; border:none; background:none; }
+  .day-cell span{ font-family:'Fraunces', serif; font-size:clamp(1.4rem,2.9vw,2.7rem); color:var(--paper);
+    width:2.2em; height:2.2em; display:flex; align-items:center; justify-content:center; border-radius:50%; }
+  .day-cell.today{ border-color:var(--gold); background:rgba(205,162,77,.14); }
+  .day-cell.today span{ background:var(--gold); color:var(--ink); font-weight:700; }
   .service-label{ font-size:1.1vw; color:var(--gold); letter-spacing:.02em; }
 
   .appt-list{ list-style:none; padding:0; margin:0; }
@@ -428,7 +430,7 @@ function buildMonthCalendarHTML(){
   const startWeekday = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const todayDate = now.getDate();
-  const weekdayLabels = ['S','M','T','W','T','F','S'];
+  const weekdayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   let cells = '';
   for(let i=0;i<startWeekday;i++) cells += `<div class="day-cell blank"></div>`;
   for(let d=1; d<=daysInMonth; d++){
@@ -505,12 +507,12 @@ async function renderStage(){
   });
 
   currentIdx = 0;
-  showSlide(els, dotsWrap.children, 0);
+  showSlide(els, dotsWrap.children, 0, items);
   clearTimeout(rotateTimeout);
   const scheduleNext = () => {
     rotateTimeout = setTimeout(() => {
       currentIdx = (currentIdx + 1) % els.length;
-      showSlide(els, dotsWrap.children, currentIdx);
+      showSlide(els, dotsWrap.children, currentIdx, items);
       scheduleNext();
     }, items[currentIdx].durationMs);
   };
@@ -538,9 +540,11 @@ async function renderStage(){
     }, 5 * 60 * 1000);
   }
 }
-function showSlide(els, dots, i){
+function showSlide(els, dots, i, items){
   els.forEach((el, idx) => el.classList.toggle('active', idx === i));
   Array.from(dots).forEach((d, idx) => d.classList.toggle('on', idx === i));
+  const clock = document.getElementById('clock');
+  clock.style.display = (items && items[i] && items[i].type === 'calendar') ? 'none' : '';
 }
 
 function tick(){
